@@ -13,6 +13,13 @@ import { ProductCard } from "@/components/product-card";
 export default function Home() {
   return (
     <main id="contenido" tabIndex={-1}>
+      <link
+        rel="preload"
+        as="image"
+        href="/images/pudu-hero-mobile.webp"
+        media="(max-width: 640px)"
+        fetchPriority="high"
+      />
       <section className="hero" aria-labelledby="hero-title">
         <picture>
           <source
@@ -26,7 +33,7 @@ export default function Home() {
             height="960"
             loading="eager"
             fetchPriority="high"
-            decoding="sync"
+            decoding="async"
             className="hero__image"
           />
         </picture>

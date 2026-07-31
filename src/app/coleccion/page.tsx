@@ -26,8 +26,13 @@ export default function CollectionPage() {
         <span>{products.length} piezas</span>
       </div>
       <div className="product-grid product-grid--all">
-        {products.map((product) => (
-          <ProductCard product={product} key={product.slug} />
+        {products.map((product, index) => (
+          <ProductCard
+            product={product}
+            headingLevel={2}
+            priority={index < 2}
+            key={product.slug}
+          />
         ))}
       </div>
     </main>

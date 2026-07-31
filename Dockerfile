@@ -7,7 +7,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 FROM base AS dependencies
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,target=/root/.npm npm install --global npm@11.5.1 \
+  && npm ci
 
 FROM base AS builder
 COPY --from=dependencies /app/node_modules ./node_modules

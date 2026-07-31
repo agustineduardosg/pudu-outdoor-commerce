@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { Product } from "@/data/products";
 
 export function ProductArtwork({
@@ -10,14 +11,14 @@ export function ProductArtwork({
   priority?: boolean;
 }) {
   return (
-    <div
-      className={`product-artwork ${className}`}
-      role="img"
-      aria-label={`${product.name}, imagen conceptual de producto`}
-      data-priority={priority ? "true" : "false"}
-      style={{
-        backgroundImage: `url('/images/product-${product.slug}.webp')`,
-      }}
-    />
+    <div className={`product-artwork ${className}`}>
+      <Image
+        src={`/images/product-${product.slug}.webp`}
+        alt={`${product.name}, imagen conceptual de producto`}
+        fill
+        priority={priority}
+        sizes="(max-width: 720px) 100vw, (max-width: 1100px) 50vw, 33vw"
+      />
+    </div>
   );
 }

@@ -619,11 +619,13 @@ section[id] {
 }
 
 .product-artwork {
+  position: relative;
   aspect-ratio: 3 / 4;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: center;
   transition: transform 450ms cubic-bezier(0.2, 0.75, 0.2, 1);
+}
+
+.product-artwork img {
+  object-fit: cover;
 }
 
 .product-card__visual:hover .product-artwork {
@@ -653,6 +655,7 @@ section[id] {
   padding: 1.25rem;
 }
 
+.product-card__body h2,
 .product-card__body h3 {
   margin: 0;
   font-family: var(--display);

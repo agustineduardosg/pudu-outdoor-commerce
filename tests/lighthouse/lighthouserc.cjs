@@ -31,6 +31,11 @@ module.exports = {
         "largest-contentful-paint": ["error", { maxNumericValue: 2500 }],
         "cumulative-layout-shift": ["error", { maxNumericValue: 0.1 }],
         "interaction-to-next-paint": ["warn", { maxNumericValue: 200 }],
+        "legacy-javascript-insight": "warn",
+        "network-dependency-tree-insight": "warn",
+        "lcp-discovery-insight": "warn",
+        "offscreen-images": "warn",
+        "unused-javascript": "warn",
       },
     },
     upload: {

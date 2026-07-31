@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const isDevelopment = process.env.NODE_ENV === "development";
+const usesHttpsOrigin = process.env.APP_ORIGIN?.startsWith("https://") ?? false;
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""} https://www.googletagmanager.com https://connect.facebook.net`,
@@ -14,7 +15,7 @@ const contentSecurityPolicy = [
   "form-action 'self'",
   "frame-ancestors 'none'",
   "manifest-src 'self'",
-  ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
+  ...(!isDevelopment && usesHttpsOrigin ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const nextConfig: NextConfig = {
