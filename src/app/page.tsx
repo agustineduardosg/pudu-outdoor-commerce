@@ -1,12 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
+  Activity,
   ArrowDownRight,
   ArrowRight,
-  Compass,
   Layers3,
-  MoveUpRight,
-  ShieldCheck,
+  ScanLine,
 } from "lucide-react";
 import { featuredProducts } from "@/data/products";
 import { ProductCard } from "@/components/product-card";
@@ -33,7 +32,9 @@ export default function Home() {
         </picture>
         <div className="hero__veil" />
         <div className="hero__content">
-          <p className="hero__kicker">Colección 01 · Sur de Chile</p>
+          <p className="hero__kicker">
+            <span aria-hidden="true" /> Colección 01 · Sur de Chile
+          </p>
           <h1 id="hero-title">
             Hecho para
             <br />
@@ -59,27 +60,27 @@ export default function Home() {
           </div>
         </div>
         <div className="hero__index" aria-hidden="true">
-          <span>53° S</span>
-          <span>CL / 01</span>
+          <span>Territorio<br /><b>53° S</b></span>
+          <span>Sistema<br /><b>CL / 01</b></span>
         </div>
       </section>
 
-      <section className="principles" aria-label="Principios de la colección">
+      <section className="principles" aria-label="Datos de la colección">
         <div>
-          <Compass aria-hidden="true" />
-          <span>Diseñado en Chile</span>
+          <span>Origen</span>
+          <strong>Chile</strong>
         </div>
         <div>
-          <Layers3 aria-hidden="true" />
-          <span>Sistema de capas</span>
+          <span>Arquitectura</span>
+          <strong>3 capas</strong>
         </div>
         <div>
-          <ShieldCheck aria-hidden="true" />
-          <span>Compra protegida</span>
+          <span>Moneda</span>
+          <strong>CLP · IVA incluido</strong>
         </div>
         <div>
-          <MoveUpRight aria-hidden="true" />
-          <span>Cambios simples</span>
+          <span>Entrega</span>
+          <strong>Despacho por zona</strong>
         </div>
       </section>
 
@@ -101,32 +102,38 @@ export default function Home() {
           </div>
         </header>
         <div className="product-grid product-grid--featured">
-          {featuredProducts.map((product) => (
-            <ProductCard product={product} key={product.slug} />
-          ))}
+          <ProductCard product={featuredProducts[0]} />
+          <ProductCard product={featuredProducts[1]} />
+          <aside className="collection-field-note" aria-label="Sistema de capas PUDU">
+            <p className="eyebrow">Nota de campo / 01</p>
+            <Layers3 aria-hidden="true" size={32} strokeWidth={1.4} />
+            <h3>Una capa no compite. Se integra.</h3>
+            <p>Base, abrigo y exterior forman un mismo lenguaje visual.</p>
+            <span aria-hidden="true">PUDU · CL · 53°S</span>
+          </aside>
+          <ProductCard product={featuredProducts[2]} />
+          <ProductCard product={featuredProducts[3]} />
         </div>
       </section>
 
       <section id="manifiesto" className="manifesto">
         <div className="manifesto__media">
           <Image
-            src="/images/pudu-hero-concept.webp"
-            alt=""
+            src="/images/pudu-material-editorial.webp"
+            alt="Chaqueta verde bosque sobre roca volcánica con musgo y helecho"
             fill
             sizes="(max-width: 900px) 100vw, 50vw"
           />
-          <div className="manifesto__seal">
-            <Image
-              src="/images/pudu-logo-master.webp"
-              alt="PUDU — Explore and protect"
-              width={220}
-              height={220}
-            />
+          <div className="manifesto__contours" aria-hidden="true" />
+          <div className="manifesto__coordinates" aria-hidden="true">
+            <span>LAT 53°08&apos; S</span>
+            <span>LON 70°53&apos; O</span>
+            <span>CAPA / EXTERIOR</span>
           </div>
         </div>
         <div className="manifesto__content">
           <p className="eyebrow">PUDU / Manifiesto</p>
-          <h2>No hacemos ruido para demostrar resistencia.</h2>
+          <h2>Pequeño en escala. Preciso por naturaleza.</h2>
           <p className="manifesto__lead">
             Nos inspira el animal más pequeño del bosque austral: atento,
             silencioso y perfectamente adaptado a su territorio.
@@ -154,7 +161,8 @@ export default function Home() {
         </header>
         <div className="design-grid">
           <article>
-            <span>01</span>
+            <Activity aria-hidden="true" />
+            <span>MOV / 01</span>
             <h3>Movimiento primero</h3>
             <p>
               Cortes articulados y volumen donde importa, sin agregar ruido a la
@@ -162,7 +170,8 @@ export default function Home() {
             </p>
           </article>
           <article>
-            <span>02</span>
+            <Layers3 aria-hidden="true" />
+            <span>CAP / 02</span>
             <h3>Capas que conversan</h3>
             <p>
               Proporciones pensadas para combinar base, abrigo y protección
@@ -170,7 +179,8 @@ export default function Home() {
             </p>
           </article>
           <article>
-            <span>03</span>
+            <ScanLine aria-hidden="true" />
+            <span>TRZ / 03</span>
             <h3>Ficha abierta</h3>
             <p>
               Composición, cuidado y origen visibles antes de que cada producto
@@ -181,12 +191,19 @@ export default function Home() {
       </section>
 
       <section className="closing-cta">
-        <p className="eyebrow">Prepararse también es avanzar</p>
-        <h2>Construye tu sistema.</h2>
-        <Link className="button button--dark" href="/coleccion">
-          Ver colección completa
-          <ArrowRight aria-hidden="true" size={18} />
-        </Link>
+        <div className="closing-cta__map" aria-hidden="true" />
+        <div className="closing-cta__content">
+          <p className="eyebrow">Prepararse también es avanzar</p>
+          <h2>Tu próxima capa empieza aquí.</h2>
+          <Link className="button button--light" href="/coleccion">
+            Ver colección completa
+            <ArrowRight aria-hidden="true" size={18} />
+          </Link>
+        </div>
+        <div className="closing-cta__legend" aria-hidden="true">
+          <span>PUDU / SISTEMA 01</span>
+          <span>DISEÑADO EN CHILE</span>
+        </div>
       </section>
     </main>
   );

@@ -18,6 +18,20 @@ function constantTimeEqual(left: string, right: string): boolean {
   return timingSafeEqual(leftBuffer, rightBuffer);
 }
 
+function equivalentLocalOrigin(left: string, right: string): boolean {
+  if (isProduction()) return false;
+
+  const leftUrl = new URL(left);
+  const rightUrl = new URL(right);
+  const loopbackHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
+  return (
+    loopbackHosts.has(leftUrl.hostname) &&
+    loopbackHosts.has(rightUrl.hostname) &&
+    leftUrl.protocol === rightUrl.protocol &&
+    leftUrl.port === rightUrl.port
+  );
+}
+
 export function assertTrustedOrigin(request: Request): void {
   const fetchSite = request.headers.get("sec-fetch-site");
   if (fetchSite === "cross-site") {
@@ -39,7 +53,11 @@ export function assertTrustedOrigin(request: Request): void {
     throw new AppError(403, "invalid_origin", "Origen no permitido.");
   }
 
-  if (!constantTimeEqual(normalized, canonicalAppOrigin())) {
+  const canonicalOrigin = canonicalAppOrigin();
+  if (
+    !constantTimeEqual(normalized, canonicalOrigin) &&
+    !equivalentLocalOrigin(normalized, canonicalOrigin)
+  ) {
     throw new AppError(403, "invalid_origin", "Origen no permitido.");
   }
 }

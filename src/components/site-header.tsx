@@ -33,9 +33,9 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <div className="announcement">
-        <span>Envío gratuito desde $100.000</span>
+        <span>Diseñado en Chile</span>
         <span aria-hidden="true">·</span>
-        <span>Colección conceptual 01</span>
+        <span>Colección conceptual 01 · Precios demo en CLP</span>
       </div>
       <nav className="nav-shell" aria-label="Navegación principal">
         <Link

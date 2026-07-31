@@ -96,7 +96,7 @@ export default defineConfig({
           ? "npm run build && npm run start"
           : "node node_modules/next/dist/bin/next dev --hostname 127.0.0.1",
         url: `${baseURL}/api/health/live`,
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: !process.env.CI && !productionServer,
         timeout: 180_000,
         stdout: "pipe",
         stderr: "pipe",
