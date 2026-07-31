@@ -46,6 +46,9 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Generar cliente Prisma
+        run: npx prisma generate
+
       - name: Preparar base y build
         run: |
           npx prisma migrate deploy
