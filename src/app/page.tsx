@@ -45,10 +45,11 @@ export default function Home() {
         </div>
         <div className="ruta-hero__visual">
           <Image
-            src="/images/pudu-ruta-500-hero-v1.png"
+            src="/images/pudu-ruta-500-hero-v1.avif"
             alt="Concepto PUDU Ruta 500 en color bosque con tres tazas"
             fill
             priority
+            unoptimized
             sizes="(max-width: 840px) 100vw, 55vw"
           />
           <span className="ruta-hero__asset-label">SYNTHETIC CONCEPT / V1</span>
@@ -93,10 +94,11 @@ export default function Home() {
         <div className="ruta-product__layout">
           <figure className="ruta-product__figure">
             <Image
-              src="/images/pudu-ruta-500-packaging-v1.png"
+              src="/images/pudu-ruta-500-packaging-v1.avif"
               alt="Concepto de empaque PUDU Ruta 500 con termo y tres tazas"
               width={1536}
               height={1024}
+              unoptimized
               sizes="(max-width: 900px) 100vw, 66vw"
             />
             <figcaption>Concepto de empaque · La muestra real puede variar</figcaption>
@@ -138,9 +140,10 @@ export default function Home() {
         </div>
         <div className="ruta-signature__visual">
           <Image
-            src="/images/pudu-ruta-500-colorways-v1.png"
+            src="/images/pudu-ruta-500-colorways-v1.avif"
             alt="Concepto de colores Bosque, Obsidiana y Glaciar para PUDU Ruta 500"
             fill
+            unoptimized
             sizes="(max-width: 900px) 100vw, 62vw"
           />
           <p>Colores conceptuales sujetos a disponibilidad del proveedor.</p>

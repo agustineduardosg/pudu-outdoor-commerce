@@ -50,11 +50,12 @@ export default function CollectionPage() {
 
         <figure className="collection-launch__portrait">
           <Image
-            src="/images/maite/maite-softshell-austral-snow.webp"
+            src="/images/maite/maite-softshell-austral-snow.avif"
             alt="Maite, primera embajadora PUDU, viste la Softshell Austral en la cordillera"
             fill
             loading="eager"
             fetchPriority="high"
+            unoptimized
             sizes="(max-width: 820px) 100vw, 52vw"
           />
           <figcaption>
@@ -96,6 +97,7 @@ export default function CollectionPage() {
                 src={softshell.campaign!.image}
                 alt={softshell.campaign!.alt}
                 fill
+                unoptimized
                 sizes="(max-width: 820px) 100vw, 58vw"
               />
             </Link>
@@ -103,7 +105,7 @@ export default function CollectionPage() {
               <span>Look 01 / Cordillera</span>
               <h3>{softshell.name}</h3>
               <p>{softshell.description}</p>
-              <Link href={`/producto/${softshell.slug}`} aria-label={`Ver ${softshell.name}`}>
+              <Link href={`/producto/${softshell.slug}`}>
                 Ver pieza <ArrowUpRight aria-hidden="true" size={17} />
               </Link>
             </div>
@@ -115,6 +117,7 @@ export default function CollectionPage() {
                 src={polar.campaign!.image}
                 alt={polar.campaign!.alt}
                 fill
+                unoptimized
                 sizes="(max-width: 820px) 100vw, 42vw"
               />
             </Link>
@@ -122,7 +125,7 @@ export default function CollectionPage() {
               <span>Look 02 / Refugio</span>
               <h3>{polar.name}</h3>
               <p>{polar.description}</p>
-              <Link href={`/producto/${polar.slug}`} aria-label={`Ver ${polar.name}`}>
+              <Link href={`/producto/${polar.slug}`}>
                 Ver pieza <ArrowUpRight aria-hidden="true" size={17} />
               </Link>
             </div>
