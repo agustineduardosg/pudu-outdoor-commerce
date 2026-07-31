@@ -9,8 +9,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 FROM base AS dependencies
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm install --global npm@10.9.2 \
-  && npm --prefix /app ci
+RUN --mount=type=cache,target=/root/.npm node -e \
+  "const lock=require('./package-lock.json'); const pkg=require('./package.json'); if(lock.lockfileVersion < 1 || lock.packages[''].name !== pkg.name) process.exit(1); console.log('lockfile valid', lock.lockfileVersion, pkg.name)" \
+  && npm --version \
+  && npm ci --loglevel verbose
 
 FROM base AS builder
 COPY --from=dependencies /app/node_modules ./node_modules
