@@ -34,6 +34,7 @@ module.exports = {
         "legacy-javascript-insight": "warn",
         "network-dependency-tree-insight": "warn",
         "lcp-discovery-insight": "warn",
+        "forced-reflow-insight": "warn",
         "offscreen-images": "warn",
         "unused-javascript": "warn",
       },

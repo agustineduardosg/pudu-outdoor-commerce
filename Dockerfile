@@ -1,13 +1,15 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:22-alpine AS base
-RUN apk add --no-cache libc6-compat
+FROM node:22-bookworm-slim AS base
+RUN apt-get update \
+  && apt-get install --yes --no-install-recommends ca-certificates openssl \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
 FROM base AS dependencies
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm install --global npm@11.5.1 \
+RUN --mount=type=cache,target=/root/.npm npm install --global npm@10.9.2 \
   && npm ci
 
 FROM base AS builder
@@ -25,15 +27,15 @@ ENV NODE_ENV=production
 RUN npx prisma generate
 RUN npm run build
 
-FROM node:22-alpine AS runner
+FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
+RUN groupadd --system --gid 1001 nodejs \
+  && useradd --system --uid 1001 --gid nodejs nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
