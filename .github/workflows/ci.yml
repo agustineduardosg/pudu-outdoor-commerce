@@ -1,0 +1,127 @@
+name: Calidad
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: calidad-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+  DATABASE_URL: postgresql://pudu:pudu_ci@127.0.0.1:5432/pudu_test
+  AUTH_SECRET: ci-only-secret-not-used-in-production
+  APP_ORIGIN: http://127.0.0.1:3000
+
+jobs:
+  quality:
+    name: Lint, tipos, pruebas y build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pudu
+          POSTGRES_PASSWORD: pudu_ci
+          POSTGRES_DB: pudu_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pudu -d pudu_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Aplicar migraciones
+        run: npx prisma migrate deploy
+
+      - name: Sembrar datos de prueba
+        run: npx prisma db seed
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tipos
+        run: npx tsc --noEmit
+
+      - name: Pruebas unitarias
+        run: npm run test:unit --if-present
+
+      - name: Build de producción
+        run: npm run build
+
+      - name: Auditoría de dependencias productivas
+        run: npm audit --omit=dev --audit-level=high
+
+  browser:
+    name: Playwright
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pudu
+          POSTGRES_PASSWORD: pudu_ci
+          POSTGRES_DB: pudu_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pudu -d pudu_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Preparar base de datos
+        run: |
+          npx prisma migrate deploy
+          npx prisma db seed
+
+      - name: Instalar navegadores
+        run: npx playwright install --with-deps
+
+      - name: Ejecutar suite
+        run: npx playwright test
+        env:
+          PW_FULL_BROWSERS: ${{ github.event_name == 'push' && '1' || '0' }}
+
+      - name: Publicar informe Playwright
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

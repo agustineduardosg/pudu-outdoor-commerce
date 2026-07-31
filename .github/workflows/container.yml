@@ -1,0 +1,52 @@
+name: Contenedor
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - docker-compose.yml
+      - package.json
+      - package-lock.json
+      - src/**
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: contenedor-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validar Compose
+        run: docker compose config --quiet
+
+      - name: Construir imagen reproducible
+        run: docker build --pull --tag pudu-outdoor:${{ github.sha }} .
+
+      - name: Escanear vulnerabilidades altas y críticas
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: pudu-outdoor:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Publicar resultados de seguridad
+        if: ${{ !cancelled() && hashFiles('trivy-results.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif

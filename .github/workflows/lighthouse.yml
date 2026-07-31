@@ -1,0 +1,64 @@
+name: Lighthouse
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+  DATABASE_URL: postgresql://pudu:pudu_ci@127.0.0.1:5432/pudu_test
+  AUTH_SECRET: ci-only-secret-not-used-in-production
+  APP_ORIGIN: http://127.0.0.1:3000
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pudu
+          POSTGRES_PASSWORD: pudu_ci
+          POSTGRES_DB: pudu_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pudu -d pudu_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Preparar base y build
+        run: |
+          npx prisma migrate deploy
+          npx prisma db seed
+          npm run build
+
+      - name: Auditar presupuestos Lighthouse
+        run: npx lhci autorun --config=tests/lighthouse/lighthouserc.cjs
+
+      - name: Publicar informes
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          retention-days: 14

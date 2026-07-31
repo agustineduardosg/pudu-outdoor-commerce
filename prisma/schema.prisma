@@ -1,0 +1,313 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdminRole {
+  OWNER
+  MANAGER
+  FULFILLMENT
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PREPARING
+  SHIPPED
+  COMPLETED
+  CANCELLED
+  REVIEW
+}
+
+enum ReservationStatus {
+  ACTIVE
+  CONSUMED
+  RELEASED
+}
+
+enum PaymentProvider {
+  MERCADO_PAGO
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+  CANCELLED
+  REVIEW
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum EmailDeliveryType {
+  ORDER_PAID
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+model AdminUser {
+  id                  String         @id @default(uuid()) @db.Uuid
+  email               String         @unique @db.VarChar(254)
+  passwordHash        String         @db.VarChar(255)
+  role                AdminRole      @default(MANAGER)
+  totpSecretEncrypted String?        @db.Text
+  totpEnabled         Boolean        @default(false)
+  failedLoginAttempts Int            @default(0)
+  lockedUntil         DateTime?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  sessions            AdminSession[]
+  auditLogs           AuditLog[]
+}
+
+model AdminSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique @db.Char(64)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  adminId   String    @db.Uuid
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, expiresAt])
+}
+
+model Collection {
+  id        String    @id @default(uuid()) @db.Uuid
+  slug      String    @unique @db.VarChar(120)
+  name      String    @db.VarChar(120)
+  summary   String?   @db.Text
+  active    Boolean   @default(true)
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Product {
+  id           String           @id @default(uuid()) @db.Uuid
+  slug         String           @unique @db.VarChar(120)
+  baseSku      String           @unique @db.VarChar(64)
+  name         String           @db.VarChar(160)
+  subtitle     String           @db.VarChar(200)
+  description  String           @db.Text
+  status       ProductStatus    @default(DRAFT)
+  priceClp     Int
+  compareAtClp Int?
+  featured     Boolean          @default(false)
+  sortOrder    Int              @default(0)
+  collectionId String?          @db.Uuid
+  collection   Collection?      @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  variants     ProductVariant[]
+  media        ProductMedia[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([status, featured, sortOrder])
+  @@index([collectionId, status])
+}
+
+model ProductVariant {
+  id            String        @id @default(uuid()) @db.Uuid
+  sku           String        @unique @db.VarChar(64)
+  size          String        @db.VarChar(32)
+  colorName     String        @db.VarChar(80)
+  colorHex      String        @db.Char(7)
+  active        Boolean       @default(true)
+  stockOnHand   Int           @default(0)
+  stockReserved Int           @default(0)
+  productId     String        @db.Uuid
+  product       Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems    OrderItem[]
+  reservations  Reservation[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([productId, active])
+  @@index([active, stockOnHand])
+}
+
+model ProductMedia {
+  id          String   @id @default(uuid()) @db.Uuid
+  url         String   @db.VarChar(2048)
+  altText     String   @db.VarChar(240)
+  provisional Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  productId   String   @db.Uuid
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@index([productId, sortOrder])
+}
+
+model ShippingZone {
+  id           String   @id @default(uuid()) @db.Uuid
+  code         String   @unique @db.VarChar(32)
+  name         String   @db.VarChar(120)
+  communes     String[]
+  priceClp     Int
+  freeAboveClp Int
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  orders       Order[]
+}
+
+model Order {
+  id                   String          @id @default(uuid()) @db.Uuid
+  publicTokenHash      String          @unique @db.Char(64)
+  externalReference    String          @unique @db.VarChar(120)
+  status               OrderStatus     @default(PENDING_PAYMENT)
+  email                String          @db.VarChar(254)
+  firstName            String          @db.VarChar(80)
+  lastName             String          @db.VarChar(80)
+  phone                String          @db.VarChar(24)
+  addressLine1         String          @db.VarChar(120)
+  addressLine2         String?         @db.VarChar(120)
+  commune              String          @db.VarChar(120)
+  region               String          @db.VarChar(120)
+  postalCode           String?         @db.VarChar(12)
+  deliveryInstructions String?         @db.VarChar(300)
+  subtotalClp          Int
+  shippingClp          Int
+  totalClp             Int
+  currency             String          @default("CLP") @db.Char(3)
+  reservationExpiresAt DateTime
+  shippingZoneId       String          @db.Uuid
+  shippingZone         ShippingZone    @relation(fields: [shippingZoneId], references: [id], onDelete: Restrict)
+  items                OrderItem[]
+  reservations         Reservation[]
+  payments             Payment[]
+  emailDeliveries      EmailDelivery[]
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@index([status, createdAt])
+  @@index([email, createdAt])
+}
+
+model OrderItem {
+  id           String         @id @default(uuid()) @db.Uuid
+  orderId      String         @db.Uuid
+  order        Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId    String         @db.Uuid
+  variant      ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  sku          String         @db.VarChar(64)
+  productName  String         @db.VarChar(160)
+  size         String         @db.VarChar(32)
+  colorName    String         @db.VarChar(80)
+  unitPriceClp Int
+  quantity     Int
+  lineTotalClp Int
+
+  @@index([orderId])
+  @@index([variantId])
+}
+
+model Reservation {
+  id        String            @id @default(uuid()) @db.Uuid
+  orderId   String            @db.Uuid
+  order     Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId String            @db.Uuid
+  variant   ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  quantity  Int
+  status    ReservationStatus @default(ACTIVE)
+  expiresAt DateTime
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([orderId, variantId])
+  @@index([status, expiresAt])
+}
+
+model Payment {
+  id                   String          @id @default(uuid()) @db.Uuid
+  provider             PaymentProvider @default(MERCADO_PAGO)
+  providerPaymentId    String?         @unique @db.VarChar(120)
+  providerPreferenceId String?         @unique @db.VarChar(120)
+  status               PaymentStatus   @default(PENDING)
+  rawStatus            String          @db.VarChar(80)
+  amountClp            Int
+  currency             String          @default("CLP") @db.Char(3)
+  orderId              String          @db.Uuid
+  order                Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@index([orderId, createdAt])
+}
+
+model WebhookEvent {
+  id              String        @id @default(uuid()) @db.Uuid
+  providerEventId String        @unique @db.VarChar(160)
+  paymentId       String?       @db.VarChar(120)
+  requestId       String?       @db.VarChar(160)
+  eventType       String        @db.VarChar(120)
+  payloadHash     String        @db.Char(64)
+  status          WebhookStatus @default(RECEIVED)
+  attempts        Int           @default(0)
+  nextAttemptAt   DateTime      @default(now())
+  lockedAt        DateTime?
+  failureCode     String?       @db.VarChar(120)
+  receivedAt      DateTime      @default(now())
+  processedAt     DateTime?
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status, nextAttemptAt])
+}
+
+model EmailDelivery {
+  id                String              @id @default(uuid()) @db.Uuid
+  orderId           String              @db.Uuid
+  order             Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type              EmailDeliveryType
+  status            EmailDeliveryStatus @default(PENDING)
+  attempts          Int                 @default(0)
+  nextAttemptAt     DateTime            @default(now())
+  lockedAt          DateTime?
+  providerMessageId String?             @db.VarChar(160)
+  failureCode       String?             @db.VarChar(120)
+  sentAt            DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([orderId, type])
+  @@index([status, nextAttemptAt])
+}
+
+model AuditLog {
+  id         String     @id @default(uuid()) @db.Uuid
+  adminId    String?    @db.Uuid
+  admin      AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  actor      String     @db.VarChar(120)
+  action     String     @db.VarChar(120)
+  targetType String     @db.VarChar(120)
+  targetId   String?    @db.VarChar(160)
+  metadata   Json?
+  ipHash     String?    @db.Char(64)
+  createdAt  DateTime   @default(now())
+
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
