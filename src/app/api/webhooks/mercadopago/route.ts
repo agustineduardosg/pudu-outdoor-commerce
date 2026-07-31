@@ -16,6 +16,13 @@ export const runtime = "nodejs";
 
 const MAX_WEBHOOK_BYTES = 65_536;
 
+function parseSignedPaymentId(value: string | null): string {
+  if (!value || !/^\d{1,32}$/.test(value)) {
+    throw new AppError(401, "invalid_webhook_signature", "Firma inválida.");
+  }
+  return value;
+}
+
 export async function POST(request: Request): Promise<Response> {
   try {
     assertRateLimit(request, "mercado-pago-webhook", 180, 60_000);
@@ -51,11 +58,9 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const url = new URL(request.url);
-    const signedDataId =
-      url.searchParams.get("data.id") ?? url.searchParams.get("data_id");
-    if (!signedDataId || !/^\d{1,32}$/.test(signedDataId)) {
-      throw new AppError(401, "invalid_webhook_signature", "Firma inválida.");
-    }
+    const signedDataId = parseSignedPaymentId(
+      url.searchParams.get("data.id") ?? url.searchParams.get("data_id"),
+    );
     verifyMercadoPagoSignature({
       signatureHeader: request.headers.get("x-signature"),
       requestId: request.headers.get("x-request-id"),
