@@ -47,6 +47,6 @@ jobs:
 
       - name: Publicar resultados de seguridad
         if: ${{ !cancelled() && hashFiles('trivy-results.sarif') != '' }}
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4.37.3
         with:
           sarif_file: trivy-results.sarif
