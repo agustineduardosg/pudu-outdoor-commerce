@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: pudu_staging
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
-      - postgres_staging_data:/var/lib/postgresql/data
+      - postgres_staging_data_v2:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pudu_staging -d pudu_staging"]
       interval: 5s
@@ -105,7 +105,7 @@ services:
       - private
 
 volumes:
-  postgres_staging_data:
+  postgres_staging_data_v2:
 
 networks:
   public:
