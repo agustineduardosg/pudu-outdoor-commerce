@@ -53,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const signedDataId =
       url.searchParams.get("data.id") ?? url.searchParams.get("data_id");
-    if (!signedDataId || signedDataId !== payload.data.data.id) {
+    if (!signedDataId || !/^\d{1,32}$/.test(signedDataId)) {
       throw new AppError(401, "invalid_webhook_signature", "Firma inválida.");
     }
     verifyMercadoPagoSignature({
@@ -73,10 +73,10 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const result = await enqueueMercadoPagoWebhook({
-      eventId: `${payload.data.type}:${payload.data.id}`,
+      eventId: `${payload.data.type}:${signedDataId}:${payload.data.action}`,
       requestId: request.headers.get("x-request-id"),
       eventType: payload.data.action,
-      paymentId: payload.data.data.id,
+      paymentId: signedDataId,
       payloadHash: sha256(rawBody),
     });
     return jsonResponse({ received: true, result }, { status: 202 });
