@@ -18,7 +18,7 @@ test.describe("Tienda pública PUDU", () => {
     await expect(page.getByRole("contentinfo")).toBeVisible();
   });
 
-  test("la colección expone los ocho productos conceptuales @critical", async ({
+  test("la colección expone solo prendas con branding PUDU @critical", async ({
     page,
   }) => {
     const response = await page.goto("/coleccion");
@@ -39,10 +39,10 @@ test.describe("Tienda pública PUDU", () => {
         ),
       ),
     );
-    expect(uniqueProducts).toHaveLength(8);
+    expect(uniqueProducts).toHaveLength(2);
   });
 
-  test("una ficha permite elegir variante y conservar el carrito @critical", async ({
+  test("una ficha distingue claramente lanzamiento futuro y venta disponible @critical", async ({
     page,
   }) => {
     await page.goto("/coleccion");
@@ -75,6 +75,15 @@ test.describe("Tienda pública PUDU", () => {
       if (await colorGroup.isVisible()) {
         await colorGroup.getByRole("radio").first().check();
       }
+    }
+
+    const launchLink = page.getByRole("link", {
+      name: /avísame.*lanzamiento/i,
+    });
+    if (await launchLink.isVisible()) {
+      await expect(page.getByText(/próximamente/i).first()).toBeVisible();
+      await expect(launchLink).toHaveAttribute("href", /\/contacto\?interes=/);
+      return;
     }
 
     await page

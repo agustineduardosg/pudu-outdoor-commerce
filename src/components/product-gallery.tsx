@@ -1,14 +1,15 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { Expand, Layers3, ScanSearch } from "lucide-react";
 import type { Product } from "@/data/products";
 import { ProductArtwork } from "./product-artwork";
 
 const views = [
-  { id: "front", label: "Vista frontal", icon: Expand },
-  { id: "detail", label: "Detalle de construcción", icon: ScanSearch },
-  { id: "system", label: "Vista de sistema", icon: Layers3 },
+  { id: "front", label: "Vista de producto", icon: Expand },
+  { id: "detail", label: "Diseño y construcción", icon: ScanSearch },
+  { id: "system", label: "Maite usa la pieza", icon: Layers3 },
 ] as const;
 
 type ViewId = (typeof views)[number]["id"];
@@ -22,6 +23,9 @@ export function ProductGallery({ product }: { product: Product }) {
       <div className="product-gallery__rail" aria-label="Vistas del producto">
         {views.map((view, index) => {
           const Icon = view.icon;
+          const thumbnail =
+            view.id === "detail" ? product.designBoard : view.id === "system" ? product.campaign : null;
+
           return (
             <button
               key={view.id}
@@ -34,6 +38,13 @@ export function ProductGallery({ product }: { product: Product }) {
               <span aria-hidden="true" className={`gallery-thumb gallery-thumb--${view.id}`}>
                 {index === 0 ? (
                   <ProductArtwork product={product} />
+                ) : thumbnail ? (
+                  <Image
+                    src={thumbnail.image}
+                    alt=""
+                    fill
+                    sizes="68px"
+                  />
                 ) : (
                   <Icon size={18} strokeWidth={1.5} />
                 )}
@@ -48,21 +59,41 @@ export function ProductGallery({ product }: { product: Product }) {
         className={`product-gallery__stage product-gallery__stage--${activeView}`}
         aria-live="polite"
       >
-        <ProductArtwork
-          product={product}
-          className="product-gallery__art"
-          priority
-        />
+        {activeView === "detail" && product.designBoard ? (
+          <Image
+            className="product-gallery__photo product-gallery__photo--board"
+            src={product.designBoard.image}
+            alt={product.designBoard.alt}
+            fill
+            sizes="(max-width: 820px) 100vw, 66vw"
+          />
+        ) : activeView === "system" && product.campaign ? (
+          <Image
+            className="product-gallery__photo product-gallery__photo--campaign"
+            src={product.campaign.image}
+            alt={product.campaign.alt}
+            fill
+            loading="eager"
+            sizes="(max-width: 820px) 100vw, 66vw"
+          />
+        ) : (
+          <ProductArtwork
+            product={product}
+            className="product-gallery__art"
+            priority
+          />
+        )}
+
         {activeView === "system" ? (
           <div className="gallery-system-note" aria-hidden="true">
-            <span>Colección 01</span>
-            <strong>Sistema de capas</strong>
+            <span>{product.campaign?.scene ?? "Colección Mujer"}</span>
+            <strong>{product.campaign ? "Con Maite" : "Sistema de capas"}</strong>
           </div>
         ) : null}
       </div>
 
       <div className="product-gallery__caption">
-        <span>Imagen conceptual</span>
+        <span>Concepto visual</span>
         <span>{active.label}</span>
       </div>
     </div>

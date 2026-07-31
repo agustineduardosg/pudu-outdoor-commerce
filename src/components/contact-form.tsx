@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { ArrowRight } from "lucide-react";
 
-export function ContactForm() {
+export function ContactForm({ defaultMessage = "" }: { defaultMessage?: string }) {
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -76,6 +76,7 @@ export function ContactForm() {
           <textarea
             name="message"
             autoComplete="off"
+            defaultValue={defaultMessage}
             minLength={10}
             maxLength={2_000}
             required

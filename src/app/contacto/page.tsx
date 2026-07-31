@@ -1,9 +1,17 @@
 import type { Metadata } from "next";
 import { ContactForm } from "@/components/contact-form";
+import { getProduct } from "@/data/products";
 
 export const metadata: Metadata = { title: "Contacto" };
 
-export default function ContactPage() {
+export default async function ContactPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ interes?: string }>;
+}) {
+  const { interes } = await searchParams;
+  const product = interes ? getProduct(interes) : undefined;
+
   return (
     <main id="contenido" tabIndex={-1} className="page-shell info-page">
       <header className="legal-hero">
@@ -23,7 +31,13 @@ export default function ContactPage() {
             pedido solo necesitaremos su número y el correo usado en la compra.
           </p>
         </div>
-        <ContactForm />
+        <ContactForm
+          defaultMessage={
+            product
+              ? `Quiero recibir novedades sobre ${product.name}. Mi talla y color de interés son: `
+              : undefined
+          }
+        />
       </div>
     </main>
   );

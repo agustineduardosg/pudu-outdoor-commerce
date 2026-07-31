@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ProductCard } from "@/components/product-card";
 import { ProductGallery } from "@/components/product-gallery";
 import { ProductPurchase } from "@/components/product-purchase";
-import { getProduct, products } from "@/data/products";
+import { brandedProducts, getBrandedProduct } from "@/data/products";
 
 export function generateStaticParams() {
-  return products.map((product) => ({ slug: product.slug }));
+  return brandedProducts.map((product) => ({ slug: product.slug }));
 }
 
 export async function generateMetadata({
@@ -15,7 +16,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProduct(slug);
+  const product = getBrandedProduct(slug);
   if (!product) return {};
   return { title: product.name, description: product.description };
 }
@@ -26,9 +27,9 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = getProduct(slug);
+  const product = getBrandedProduct(slug);
   if (!product) notFound();
-  const related = products.filter((item) => item.slug !== slug).slice(0, 3);
+  const related = brandedProducts.filter((item) => item.slug !== slug);
 
   return (
     <main id="contenido" tabIndex={-1} className="product-page">
@@ -36,6 +37,27 @@ export default async function ProductPage({
         <ProductGallery product={product} />
         <ProductPurchase product={product} />
       </section>
+      {product.campaign ? (
+        <section className="product-ambassador-story section-shell">
+          <div className="product-ambassador-story__copy">
+            <p className="eyebrow">Embajadora 01 / {product.campaign.scene}</p>
+            <h2>Vista por Maite.</h2>
+            <p>
+              Esta escena presenta la intención de uso y silueta de la pieza.
+              Es dirección de arte conceptual: la prenda definitiva se ajustará
+              después de validar materiales, calce y confección.
+            </p>
+          </div>
+          <figure>
+            <Image
+              src={product.campaign.image}
+              alt={product.campaign.alt}
+              fill
+              sizes="(max-width: 820px) 100vw, 55vw"
+            />
+          </figure>
+        </section>
+      ) : null}
       <section className="product-story section-shell">
         <p className="eyebrow">Pensada como sistema</p>
         <h2>{product.name} no trabaja sola.</h2>
@@ -52,7 +74,9 @@ export default async function ProductPage({
             <h2>Combina capas.</h2>
           </div>
         </header>
-        <div className="product-grid product-grid--related">
+        <div
+          className={`product-grid product-grid--related ${related.length === 1 ? "product-grid--single" : ""}`}
+        >
           {related.map((item) => (
             <ProductCard product={item} key={item.slug} />
           ))}

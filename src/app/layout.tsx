@@ -8,40 +8,40 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_ORIGIN ?? "http://localhost:3000"),
   title: {
-    default: "PUDU Outdoor — Hecho para seguir",
+    default: "PUDU Ruta 500 — El camino se comparte",
     template: "%s · PUDU Outdoor",
   },
   description:
-    "Ropa outdoor chilena de presencia silenciosa. Descubre la primera colección conceptual de PUDU.",
+    "Conoce PUDU Ruta 500, un set de termo de 500 ml y tres tazas actualmente en validación para su lanzamiento en Chile.",
   keywords: [
-    "ropa outdoor Chile",
+    "termo outdoor Chile",
+    "termo 500 ml",
+    "set termo tres tazas",
     "PUDU Outdoor",
-    "ropa técnica",
-    "Patagonia",
-    "chaquetas outdoor",
+    "accesorios outdoor",
   ],
   openGraph: {
     type: "website",
     locale: "es_CL",
     siteName: "PUDU Outdoor",
-    title: "PUDU Outdoor — Hecho para seguir",
+    title: "PUDU Ruta 500 — El camino se comparte",
     description:
-      "Capas técnicas de presencia silenciosa, diseñadas en Chile.",
+      "Un termo de 500 ml y tres tazas para compartir el camino. Concepto en validación.",
     images: [
       {
-        url: "/images/pudu-hero-concept.webp",
-        width: 1536,
-        height: 1024,
-        alt: "PUDU Outdoor en el paisaje patagónico",
+        url: "/images/pudu-ruta-500-hero-v1.png",
+        width: 1056,
+        height: 1320,
+        alt: "Concepto PUDU Ruta 500 en color bosque con tres tazas",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "PUDU Outdoor — Hecho para seguir",
+    title: "PUDU Ruta 500 — El camino se comparte",
     description:
-      "Capas técnicas de presencia silenciosa, diseñadas en Chile.",
-    images: ["/images/pudu-hero-concept.webp"],
+      "Un termo de 500 ml y tres tazas para compartir el camino. Concepto en validación.",
+    images: ["/images/pudu-ruta-500-hero-v1.png"],
   },
 };
 

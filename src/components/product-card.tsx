@@ -19,7 +19,9 @@ export function ProductCard({
     <article className="product-card">
       <Link href={`/producto/${product.slug}`} className="product-card__visual">
         <ProductArtwork product={product} priority={priority} />
-        <span className="product-card__badge">Edición conceptual</span>
+        <span className="product-card__badge">
+          {product.availability === "available" ? "Disponible" : "Próximamente"}
+        </span>
       </Link>
       <div className="product-card__body">
         <div>
@@ -29,7 +31,10 @@ export function ProductCard({
           </Heading>
         </div>
         <div className="product-card__meta">
-          <span>{formatCLP(product.price)}</span>
+          <span>
+            <small>Precio ref.</small>
+            {formatCLP(product.price)}
+          </span>
           <Link
             href={`/producto/${product.slug}`}
             aria-label={`Ver ${product.name}`}
