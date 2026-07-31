@@ -1,0 +1,113 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pudu_staging
+      POSTGRES_USER: pudu_staging
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pudu_staging -d pudu_staging"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - private
+
+  migrate:
+    build:
+      context: .
+      target: builder
+    restart: "no"
+    command: ["sh", "-c", "npx prisma migrate deploy && npx prisma db seed"]
+    environment:
+      DATABASE_URL: postgresql://pudu_staging:${POSTGRES_PASSWORD}@db:5432/pudu_staging
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - private
+
+  web:
+    build:
+      context: .
+      target: runner
+      args:
+        NEXT_PUBLIC_GA4_ID: ${NEXT_PUBLIC_GA4_ID:-}
+        NEXT_PUBLIC_META_PIXEL_ID: ${NEXT_PUBLIC_META_PIXEL_ID:-}
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PUDU_DEMO_MODE: "false"
+      DATABASE_URL: postgresql://pudu_staging:${POSTGRES_PASSWORD}@db:5432/pudu_staging
+      APP_ORIGIN: ${APP_ORIGIN}
+      AUTH_SECRET: ${AUTH_SECRET}
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}
+      ADMIN_BOOTSTRAP_TOKEN: ${ADMIN_BOOTSTRAP_TOKEN}
+      ADMIN_TOTP_ENCRYPTION_KEY: ${ADMIN_TOTP_ENCRYPTION_KEY}
+      MERCADO_PAGO_MODE: sandbox
+      MERCADO_PAGO_ACCESS_TOKEN: ${MERCADO_PAGO_ACCESS_TOKEN:-}
+      MERCADO_PAGO_WEBHOOK_SECRET: ${MERCADO_PAGO_WEBHOOK_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      CONTACT_EMAIL: ${CONTACT_EMAIL:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      R2_ENDPOINT: ${R2_ENDPOINT:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+      R2_PUBLIC_URL: ${R2_PUBLIC_URL:-}
+    expose:
+      - "3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - public
+      - private
+
+  worker:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    command: ["node", "scripts/worker.mjs"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://pudu_staging:${POSTGRES_PASSWORD}@db:5432/pudu_staging
+      APP_ORIGIN: ${APP_ORIGIN}
+      AUTH_SECRET: ${AUTH_SECRET}
+      MERCADO_PAGO_MODE: sandbox
+      MERCADO_PAGO_ACCESS_TOKEN: ${MERCADO_PAGO_ACCESS_TOKEN:-}
+      MERCADO_PAGO_WEBHOOK_SECRET: ${MERCADO_PAGO_WEBHOOK_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-5000}
+      WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-25}
+      WORKER_MAX_ATTEMPTS: ${WORKER_MAX_ATTEMPTS:-8}
+      WORKER_LOCK_TIMEOUT_MS: ${WORKER_LOCK_TIMEOUT_MS:-600000}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - public
+      - private
+
+volumes:
+  postgres_staging_data:
+
+networks:
+  public:
+  private:
+    internal: true
