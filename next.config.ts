@@ -21,6 +21,10 @@ const contentSecurityPolicy = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  images: {
+    formats: ["image/avif", "image/webp"],
+    qualities: [55, 75],
+  },
   allowedDevOrigins: ["127.0.0.1"],
   async headers() {
     const securityHeaders = [

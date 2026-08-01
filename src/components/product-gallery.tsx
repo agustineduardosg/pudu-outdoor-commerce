@@ -43,7 +43,7 @@ export function ProductGallery({ product }: { product: Product }) {
                     src={thumbnail.image}
                     alt=""
                     fill
-                    unoptimized={thumbnail.image.endsWith(".avif")}
+                    quality={55}
                     sizes="68px"
                   />
                 ) : (
@@ -66,7 +66,7 @@ export function ProductGallery({ product }: { product: Product }) {
             src={product.designBoard.image}
             alt={product.designBoard.alt}
             fill
-            unoptimized={product.designBoard.image.endsWith(".avif")}
+            quality={55}
             sizes="(max-width: 820px) 100vw, 66vw"
           />
         ) : activeView === "system" && product.campaign ? (
@@ -76,7 +76,7 @@ export function ProductGallery({ product }: { product: Product }) {
             alt={product.campaign.alt}
             fill
             loading="eager"
-            unoptimized={product.campaign.image.endsWith(".avif")}
+            quality={55}
             sizes="(max-width: 820px) 100vw, 66vw"
           />
         ) : (

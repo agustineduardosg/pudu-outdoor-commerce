@@ -55,7 +55,7 @@ export default function CollectionPage() {
             fill
             loading="eager"
             fetchPriority="high"
-            unoptimized
+            quality={55}
             sizes="(max-width: 820px) 100vw, 52vw"
           />
           <figcaption>
@@ -97,7 +97,7 @@ export default function CollectionPage() {
                 src={softshell.campaign!.image}
                 alt={softshell.campaign!.alt}
                 fill
-                unoptimized
+                quality={55}
                 sizes="(max-width: 820px) 100vw, 58vw"
               />
             </Link>
@@ -117,7 +117,7 @@ export default function CollectionPage() {
                 src={polar.campaign!.image}
                 alt={polar.campaign!.alt}
                 fill
-                unoptimized
+                quality={55}
                 sizes="(max-width: 820px) 100vw, 42vw"
               />
             </Link>
