@@ -9,7 +9,7 @@ import { useCart } from "./cart-provider";
 const links = [
   { href: "/#producto", label: "Ruta 500" },
   { href: "/#rastro", label: "Diseño" },
-  { href: "/coleccion", label: "Ropa · Próximamente" },
+  { href: "/coleccion", label: "Colección · Próximamente" },
   { href: "/faq", label: "Ayuda" },
 ];
 
