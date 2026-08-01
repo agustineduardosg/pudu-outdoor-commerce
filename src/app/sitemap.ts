@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { products } from "@/data/products";
+import { brandedProducts } from "@/data/products";
 
 const staticPaths = [
   "",
@@ -14,7 +14,7 @@ const staticPaths = [
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const origin = process.env.APP_ORIGIN ?? "http://localhost:3000";
-  const productEntries: MetadataRoute.Sitemap = products.map((product) => ({
+  const productEntries: MetadataRoute.Sitemap = brandedProducts.map((product) => ({
     url: `${origin}/producto/${product.slug}`,
     changeFrequency: "weekly",
     priority: 0.8,

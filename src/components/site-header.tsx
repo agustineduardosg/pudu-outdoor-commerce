@@ -7,9 +7,9 @@ import { useEffect, useRef, useState } from "react";
 import { useCart } from "./cart-provider";
 
 const links = [
-  { href: "/coleccion", label: "Colección" },
-  { href: "/#materiales", label: "Diseño" },
-  { href: "/guia-de-tallas", label: "Guía de tallas" },
+  { href: "/#producto", label: "Ruta 500" },
+  { href: "/#rastro", label: "Diseño" },
+  { href: "/coleccion", label: "Colección · Próximamente" },
   { href: "/faq", label: "Ayuda" },
 ];
 
@@ -33,9 +33,9 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <div className="announcement">
-        <span>Diseñado en Chile</span>
+        <span>RUTA 500 · LANZAMIENTO EN PREPARACIÓN</span>
         <span aria-hidden="true">·</span>
-        <span>Colección conceptual 01 · Precios demo en CLP</span>
+        <span>Ficha técnica en validación · Venta aún no habilitada</span>
       </div>
       <nav className="nav-shell" aria-label="Navegación principal">
         <Link

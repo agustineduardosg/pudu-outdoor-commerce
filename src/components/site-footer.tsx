@@ -18,8 +18,8 @@ export function SiteFooter() {
           />
           <p className="eyebrow">PUDU Outdoor</p>
           <p className="footer-copy">
-            Capas sobrias para un territorio que cambia sin avisar. Diseñado en
-            Chile.
+            Objetos para compartir el camino. PUDU Ruta 500 está actualmente en
+            validación para su lanzamiento en Chile.
           </p>
         </div>
         <div>
@@ -36,9 +36,9 @@ export function SiteFooter() {
           <Link href="/privacidad">Privacidad y cookies</Link>
         </div>
         <div>
-          <p className="footer-title">Colección 01</p>
-          <p>Edición conceptual.</p>
-          <p>Activos y fichas finales pendientes.</p>
+          <p className="footer-title">PUDU Objects / 01</p>
+          <p>Ruta 500 · Concepto en validación.</p>
+          <p>Ropa PUDU · Próximamente.</p>
         </div>
       </div>
       <div className="footer-bottom">

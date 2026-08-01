@@ -32,6 +32,7 @@ module.exports = {
         "cumulative-layout-shift": ["error", { maxNumericValue: 0.1 }],
         "interaction-to-next-paint": ["warn", { maxNumericValue: 200 }],
         "legacy-javascript-insight": "warn",
+        "image-delivery-insight": "warn",
         "network-dependency-tree-insight": "warn",
         "lcp-discovery-insight": "warn",
         "forced-reflow-insight": "warn",

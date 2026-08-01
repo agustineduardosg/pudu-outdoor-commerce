@@ -49,7 +49,10 @@ export function ProductPurchase({ product }: { product: Product }) {
       <div className="purchase-panel__heading">
         <p className="eyebrow">{product.category}</p>
         <h1>{product.name}</h1>
-        <p className="product-price">{formatCLP(product.price)}</p>
+        <p className="product-price">
+          <small>Precio referencial</small>
+          {formatCLP(product.price)}
+        </p>
       </div>
       <p className="purchase-description">{product.description}</p>
       <div className="variant-block">
@@ -93,37 +96,54 @@ export function ProductPurchase({ product }: { product: Product }) {
           ))}
         </div>
       </fieldset>
-      <div className="purchase-actions">
-        <div className="quantity-picker" aria-label="Cantidad">
+      {product.availability === "available" ? (
+        <div className="purchase-actions">
+          <div className="quantity-picker" aria-label="Cantidad">
+            <button
+              type="button"
+              aria-label="Disminuir cantidad"
+              disabled={quantity === 1}
+              onClick={() => setQuantity((value) => Math.max(1, value - 1))}
+            >
+              <Minus aria-hidden="true" size={16} />
+            </button>
+            <output aria-label={`${quantity} unidades`}>{quantity}</output>
+            <button
+              type="button"
+              aria-label="Aumentar cantidad"
+              disabled={quantity === 5}
+              onClick={() => setQuantity((value) => Math.min(5, value + 1))}
+            >
+              <Plus aria-hidden="true" size={16} />
+            </button>
+          </div>
           <button
-            type="button"
-            aria-label="Disminuir cantidad"
-            disabled={quantity === 1}
-            onClick={() => setQuantity((value) => Math.max(1, value - 1))}
+            className="button button--dark purchase-button"
+            onClick={addToCart}
           >
-            <Minus aria-hidden="true" size={16} />
-          </button>
-          <output aria-label={`${quantity} unidades`}>{quantity}</output>
-          <button
-            type="button"
-            aria-label="Aumentar cantidad"
-            disabled={quantity === 5}
-            onClick={() => setQuantity((value) => Math.min(5, value + 1))}
-          >
-            <Plus aria-hidden="true" size={16} />
+            <ShoppingBag aria-hidden="true" size={18} />
+            Agregar al carrito
           </button>
         </div>
-        <button
-          className="button button--dark purchase-button"
-          onClick={addToCart}
-        >
-          <ShoppingBag aria-hidden="true" size={18} />
-          Agregar al carrito
-        </button>
-      </div>
+      ) : (
+        <div className="coming-soon-actions">
+          <strong>Próximamente</strong>
+          <p>
+            Estamos validando materiales, calce y confección antes de abrir la
+            venta. Cuéntanos qué talla y color te interesan.
+          </p>
+          <Link
+            className="button button--dark purchase-button"
+            href={{ pathname: "/contacto", query: { interes: product.slug } }}
+          >
+            Avísame del lanzamiento
+          </Link>
+        </div>
+      )}
       <p className="purchase-message" aria-live="polite">
         {message}
       </p>
+      {product.availability === "available" ? (
       <div className="purchase-assurances">
         <span>
           <ShieldCheck aria-hidden="true" size={17} />
@@ -134,6 +154,7 @@ export function ProductPurchase({ product }: { product: Product }) {
           Despacho calculado según tu zona
         </span>
       </div>
+      ) : null}
       <div className="product-accordions">
         <details open>
           <summary>

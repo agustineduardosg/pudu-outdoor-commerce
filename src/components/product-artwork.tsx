@@ -11,12 +11,13 @@ export function ProductArtwork({
   priority?: boolean;
 }) {
   return (
-    <div className={`product-artwork ${className}`}>
+    <div className={`product-artwork ${product.artwork ? "product-artwork--catalog" : ""} ${className}`}>
       <Image
-        src={`/images/product-${product.slug}.webp`}
+        src={product.artwork ?? `/images/product-${product.slug}.webp`}
         alt={`${product.name}, imagen conceptual de producto`}
         fill
-        priority={priority}
+        preload={priority}
+        quality={55}
         sizes="(max-width: 720px) 100vw, (max-width: 1100px) 50vw, 33vw"
       />
     </div>
