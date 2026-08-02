@@ -1,5 +1,4 @@
 import { Prisma, PrismaClient } from "@prisma/client";
-import { Resend } from "resend";
 
 import {
   normalizePaymentStatus,
@@ -21,6 +20,15 @@ const lockTimeoutMs = numericEnv(
   60 * 60_000,
 );
 let stopping = false;
+let resendClientPromise;
+
+async function getResendClient(apiKey) {
+  if (!apiKey) return null;
+  resendClientPromise ??= import("resend").then(
+    ({ Resend }) => new Resend(apiKey),
+  );
+  return resendClientPromise;
+}
 
 function numericEnv(name, fallback, minimum, maximum) {
   const parsed = Number.parseInt(process.env[name] ?? "", 10);
@@ -429,9 +437,11 @@ async function failEmail(delivery, error) {
 
 async function processEmails() {
   const deliveries = await claimEmailDeliveries();
+  if (deliveries.length === 0) return 0;
+
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
-  const resend = apiKey ? new Resend(apiKey) : null;
+  const resend = await getResendClient(apiKey);
 
   for (const delivery of deliveries) {
     try {
