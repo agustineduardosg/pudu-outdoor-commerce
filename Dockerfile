@@ -2,6 +2,7 @@
 
 FROM node:22-bookworm-slim AS base
 RUN apt-get update \
+  && apt-get upgrade --yes \
   && apt-get install --yes --no-install-recommends ca-certificates openssl \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
