@@ -5,6 +5,7 @@ import type { z } from "zod";
 import type {
   catalogProductUpsertSchema,
   inventoryUpdateSchema,
+  influencerUpsertSchema,
   orderStatusUpdateSchema,
   shippingZoneUpsertSchema,
   variantUpsertSchema,
@@ -14,6 +15,7 @@ import type { AdminPrincipal } from "./admin-auth";
 import { auditAdminMutation } from "./admin-auth";
 import { getDatabase } from "./db";
 import { AppError, ConfigurationError } from "./errors";
+import { deleteManagedMediaObject } from "./media-service";
 
 function db() {
   const database = getDatabase();
@@ -27,6 +29,20 @@ function db() {
 
 export async function adminList(resource: string) {
   switch (resource) {
+    case "dashboard": {
+      const database = db();
+      const [products, activeProducts, influencers, activeInfluencers, orders, openOrders, lowStock, media] = await Promise.all([
+        database.product.count(),
+        database.product.count({ where: { status: "ACTIVE" } }),
+        database.influencer.count(),
+        database.influencer.count({ where: { status: "ACTIVE" } }),
+        database.order.count(),
+        database.order.count({ where: { status: { in: ["PAID", "PREPARING", "SHIPPED", "REVIEW"] } } }),
+        database.productVariant.count({ where: { active: true, stockOnHand: { lte: 5 } } }),
+        database.influencerMedia.count(),
+      ]);
+      return { products, activeProducts, influencers, activeInfluencers, orders, openOrders, lowStock, media };
+    }
     case "catalog":
       return db().product.findMany({
         select: {
@@ -34,6 +50,8 @@ export async function adminList(resource: string) {
           slug: true,
           baseSku: true,
           name: true,
+          subtitle: true,
+          description: true,
           status: true,
           priceClp: true,
           featured: true,
@@ -98,9 +116,119 @@ export async function adminList(resource: string) {
       });
     case "variants":
       return db().productVariant.findMany({ select: { id: true, productId: true, sku: true, size: true, colorName: true, colorHex: true, active: true, stockOnHand: true }, orderBy: { sku: "asc" }, take: 500 });
+    case "influencers":
+      return db().influencer.findMany({
+        select: {
+          id: true,
+          slug: true,
+          displayName: true,
+          legalName: true,
+          pronouns: true,
+          bio: true,
+          location: true,
+          email: true,
+          instagramHandle: true,
+          status: true,
+          featured: true,
+          sortOrder: true,
+          updatedAt: true,
+          _count: { select: { media: true } },
+          media: { select: { url: true, altText: true }, orderBy: { sortOrder: "asc" }, take: 1 },
+        },
+        orderBy: [{ sortOrder: "asc" }, { displayName: "asc" }],
+        take: 200,
+      });
+    case "influencer-media":
+      return db().influencerMedia.findMany({
+        select: {
+          id: true,
+          influencerId: true,
+          url: true,
+          altText: true,
+          caption: true,
+          kind: true,
+          provisional: true,
+          sortOrder: true,
+          createdAt: true,
+          influencer: { select: { displayName: true } },
+        },
+        orderBy: [{ influencerId: "asc" }, { sortOrder: "asc" }],
+        take: 500,
+      });
+    case "audit":
+      return db().auditLog.findMany({
+        select: { id: true, actor: true, action: true, targetType: true, targetId: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 250,
+      });
     default:
       throw new AppError(404, "admin_resource_not_found", "Recurso no encontrado.");
   }
+}
+
+export async function upsertInfluencer(
+  principal: AdminPrincipal,
+  input: z.infer<typeof influencerUpsertSchema>,
+) {
+  const normalized = {
+    slug: input.slug,
+    displayName: input.displayName,
+    legalName: input.legalName || null,
+    pronouns: input.pronouns || null,
+    bio: input.bio,
+    location: input.location || null,
+    email: input.email || null,
+    instagramHandle: input.instagramHandle
+      ? input.instagramHandle.replace(/^@/, "")
+      : null,
+    status: input.status,
+    featured: input.featured,
+    sortOrder: input.sortOrder,
+  };
+  const influencer = input.id
+    ? await db().influencer.update({ where: { id: input.id }, data: normalized })
+    : await db().influencer.create({ data: normalized });
+  await auditAdminMutation(
+    principal,
+    input.id ? "influencer.update" : "influencer.create",
+    "Influencer",
+    influencer.id,
+  );
+  return influencer;
+}
+
+export async function deleteAdminResource(
+  principal: AdminPrincipal,
+  resource: string,
+  id: string,
+) {
+  if (resource === "influencer-media") {
+    const media = await db().influencerMedia.findUnique({ where: { id }, select: { url: true } });
+    if (!media) throw new AppError(404, "media_not_found", "Fotografía no encontrada.");
+    await deleteManagedMediaObject(media.url);
+    await db().influencerMedia.delete({ where: { id } });
+    await auditAdminMutation(principal, "influencer-media.delete", "InfluencerMedia", id);
+    return { id, deleted: true };
+  }
+  if (resource === "media") {
+    const media = await db().productMedia.findUnique({ where: { id }, select: { url: true } });
+    if (!media) throw new AppError(404, "media_not_found", "Fotografía no encontrada.");
+    await deleteManagedMediaObject(media.url);
+    await db().productMedia.delete({ where: { id } });
+    await auditAdminMutation(principal, "product-media.delete", "ProductMedia", id);
+    return { id, deleted: true };
+  }
+  if (resource === "influencers") {
+    await db().influencer.update({ where: { id }, data: { status: "ARCHIVED", featured: false } });
+    await auditAdminMutation(principal, "influencer.archive", "Influencer", id);
+    return { id, archived: true };
+  }
+  if (resource === "catalog") {
+    await db().product.update({ where: { id }, data: { status: "ARCHIVED", featured: false } });
+    await auditAdminMutation(principal, "catalog.archive", "Product", id);
+    return { id, archived: true };
+  }
+  throw new AppError(405, "delete_not_allowed", "Este recurso no admite eliminación.");
 }
 
 export async function upsertVariant(principal: AdminPrincipal, input: z.infer<typeof variantUpsertSchema>) {

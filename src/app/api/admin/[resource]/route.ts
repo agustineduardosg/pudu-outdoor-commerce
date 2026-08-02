@@ -1,7 +1,10 @@
 import {
   adminResourceSchema,
+  adminDeleteSchema,
   catalogProductUpsertSchema,
   inventoryUpdateSchema,
+  influencerMediaRequestSchema,
+  influencerUpsertSchema,
   mediaRequestSchema,
   orderStatusUpdateSchema,
   shippingZoneUpsertSchema,
@@ -10,14 +13,16 @@ import {
 import { requireAdmin } from "@/lib/server/admin-auth";
 import {
   adminList,
+  deleteAdminResource,
   updateInventory,
   updateOrderStatus,
+  upsertInfluencer,
   upsertCatalogProduct,
   upsertShippingZone,
   upsertVariant,
 } from "@/lib/server/admin-service";
 import { AppError } from "@/lib/server/errors";
-import { handleMedia } from "@/lib/server/media-service";
+import { handleInfluencerMedia, handleMedia } from "@/lib/server/media-service";
 import {
   errorResponse,
   jsonResponse,
@@ -46,8 +51,11 @@ export async function GET(
 ): Promise<Response> {
   try {
     assertRateLimit(request, "admin-api", 120, 60_000);
-    await requireAdmin(request);
     const resource = await resourceFrom(context);
+    await requireAdmin(
+      request,
+      resource === "audit" ? ["OWNER", "MANAGER"] : undefined,
+    );
     return jsonResponse({ data: await adminList(resource) });
   } catch (error) {
     return errorResponse(error);
@@ -70,7 +78,9 @@ export async function POST(
     );
 
     let data: unknown;
-    if (resource === "catalog") {
+    if (resource === "dashboard" || resource === "audit") {
+      throw new AppError(405, "admin_resource_read_only", "Recurso de solo lectura.");
+    } else if (resource === "catalog") {
       data = await upsertCatalogProduct(
         principal,
         await parseJsonBody(request, catalogProductUpsertSchema),
@@ -95,6 +105,16 @@ export async function POST(
         principal,
         await parseJsonBody(request, mediaRequestSchema),
       );
+    } else if (resource === "influencers") {
+      data = await upsertInfluencer(
+        principal,
+        await parseJsonBody(request, influencerUpsertSchema),
+      );
+    } else if (resource === "influencer-media") {
+      data = await handleInfluencerMedia(
+        principal,
+        await parseJsonBody(request, influencerMediaRequestSchema),
+      );
     } else {
       data = await upsertVariant(principal, await parseJsonBody(request, variantUpsertSchema));
     }
@@ -105,3 +125,29 @@ export async function POST(
 }
 
 export const PATCH = POST;
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ resource: string }> },
+): Promise<Response> {
+  try {
+    assertTrustedOrigin(request);
+    assertRateLimit(request, "admin-api-delete", 30, 60_000);
+    const resource = await resourceFrom(context);
+    if (!["catalog", "media", "influencers", "influencer-media"].includes(resource)) {
+      throw new AppError(405, "delete_not_allowed", "Este recurso no admite eliminación.");
+    }
+    const principal = await requireAdmin(request, ["OWNER", "MANAGER"]);
+    const parsed = adminDeleteSchema.safeParse({
+      id: new URL(request.url).searchParams.get("id"),
+    });
+    if (!parsed.success) {
+      throw new AppError(422, "invalid_admin_delete", "Identificador inválido.");
+    }
+    return jsonResponse({
+      data: await deleteAdminResource(principal, resource, parsed.data.id),
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}

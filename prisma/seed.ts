@@ -200,6 +200,61 @@ async function main() {
       });
     }
   }
+
+  const maite = await prisma.influencer.upsert({
+    where: { slug: "maite" },
+    update: {
+      displayName: "Maite",
+      bio: "Primera embajadora oficial de PUDU. Su archivo editorial presenta las prendas conceptuales en escenarios de cordillera y refugio.",
+      location: "Chile",
+      status: "ACTIVE",
+      featured: true,
+      sortOrder: 0,
+    },
+    create: {
+      slug: "maite",
+      displayName: "Maite",
+      bio: "Primera embajadora oficial de PUDU. Su archivo editorial presenta las prendas conceptuales en escenarios de cordillera y refugio.",
+      location: "Chile",
+      status: "ACTIVE",
+      featured: true,
+      sortOrder: 0,
+    },
+  });
+  await prisma.influencerMedia.deleteMany({
+    where: { influencerId: maite.id, provisional: true },
+  });
+  await prisma.influencerMedia.createMany({
+    data: [
+      {
+        influencerId: maite.id,
+        url: "/images/maite/maite-retrato-refugio.webp",
+        altText: "Retrato editorial de Maite en un refugio de montaña",
+        caption: "Retrato de perfil para el archivo de embajadores.",
+        kind: "PORTRAIT",
+        provisional: true,
+        sortOrder: 0,
+      },
+      {
+        influencerId: maite.id,
+        url: "/images/maite/maite-softshell-austral-snow.avif",
+        altText: "Maite viste el softshell PUDU en un paisaje nevado",
+        caption: "Campaña conceptual Softshell Austral.",
+        kind: "CAMPAIGN",
+        provisional: true,
+        sortOrder: 1,
+      },
+      {
+        influencerId: maite.id,
+        url: "/images/maite/maite-polar-lenga-refugio.avif",
+        altText: "Maite viste el polar PUDU al interior de un refugio",
+        caption: "Campaña conceptual Polar Lenga.",
+        kind: "LIFESTYLE",
+        provisional: true,
+        sortOrder: 2,
+      },
+    ],
+  });
 }
 
 main()

@@ -1,200 +1,501 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import Image from "next/image";
 
-type Session = { email: string; role: string };
-type Resource = "catalog" | "inventory" | "shipping-zones" | "orders" | "media" | "variants";
+type Session = { email: string; role: "OWNER" | "MANAGER" | "FULFILLMENT" };
+type Resource =
+  | "dashboard"
+  | "influencers"
+  | "influencer-media"
+  | "catalog"
+  | "variants"
+  | "inventory"
+  | "media"
+  | "orders"
+  | "shipping-zones"
+  | "audit";
 type Row = Record<string, unknown> & { id: string };
+type Dashboard = {
+  products: number;
+  activeProducts: number;
+  influencers: number;
+  activeInfluencers: number;
+  orders: number;
+  openOrders: number;
+  lowStock: number;
+  media: number;
+};
 
-const tabs: Array<{ id: Resource; label: string }> = [
-  { id: "catalog", label: "Catálogo" },
-  { id: "inventory", label: "Stock" },
-  { id: "shipping-zones", label: "Despacho" },
-  { id: "orders", label: "Pedidos" },
-  { id: "media", label: "Medios" },
-  { id: "variants", label: "Variantes" },
+const navigation: Array<{ label: string; items: Array<{ id: Resource; label: string }> }> = [
+  { label: "Control", items: [{ id: "dashboard", label: "Resumen" }] },
+  {
+    label: "Marca",
+    items: [
+      { id: "influencers", label: "Embajadores" },
+      { id: "influencer-media", label: "Archivo fotográfico" },
+    ],
+  },
+  {
+    label: "Comercio",
+    items: [
+      { id: "catalog", label: "Productos" },
+      { id: "variants", label: "Variantes" },
+      { id: "inventory", label: "Inventario" },
+      { id: "media", label: "Fotos de producto" },
+      { id: "orders", label: "Pedidos" },
+      { id: "shipping-zones", label: "Despacho" },
+    ],
+  },
+  { label: "Sistema", items: [{ id: "audit", label: "Auditoría" }] },
 ];
 
-function text(value: unknown): string {
-  if (value instanceof Date) return value.toLocaleString("es-CL");
-  return typeof value === "string" || typeof value === "number"
-    ? String(value)
+const resourceTitle: Record<Resource, { eyebrow: string; title: string; description: string }> = {
+  dashboard: { eyebrow: "Centro de control", title: "Estado de operación", description: "Una lectura rápida del catálogo, la marca y los pedidos." },
+  influencers: { eyebrow: "Identidad de marca", title: "Embajadores", description: "Perfiles editoriales, estado de publicación e información de contacto." },
+  "influencer-media": { eyebrow: "Biblioteca visual", title: "Archivo fotográfico", description: "Retratos, campañas y escenas de producto organizadas por embajador." },
+  catalog: { eyebrow: "Comercio", title: "Productos", description: "Información comercial, precio, publicación y posición editorial." },
+  variants: { eyebrow: "Comercio", title: "Variantes", description: "SKU, talla, color y disponibilidad por producto." },
+  inventory: { eyebrow: "Operaciones", title: "Inventario", description: "Stock físico, reservas y unidades disponibles para venta." },
+  media: { eyebrow: "Biblioteca visual", title: "Fotos de producto", description: "Imágenes asociadas al catálogo y sus textos alternativos." },
+  orders: { eyebrow: "Operaciones", title: "Pedidos", description: "Seguimiento de preparación, despacho y casos en revisión." },
+  "shipping-zones": { eyebrow: "Logística", title: "Zonas de despacho", description: "Tarifas, comunas y umbrales de envío gratuito." },
+  audit: { eyebrow: "Gobernanza", title: "Registro de actividad", description: "Trazabilidad de cambios realizados en el panel." },
+};
+
+const inputClass = "min-h-11 w-full border border-[#c8c5bc] bg-white px-3 text-sm outline-none focus:border-[#24362b] focus:ring-2 focus:ring-[#b8d2d2]";
+const primaryButton = "min-h-11 bg-[#24362b] px-5 text-sm font-bold text-white hover:bg-[#17251d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d66a3a] disabled:opacity-50";
+const secondaryButton = "min-h-11 border border-[#aaa89f] bg-transparent px-4 text-sm font-semibold hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24362b]";
+
+function display(value: unknown): string {
+  if (value === true) return "Sí";
+  if (value === false) return "No";
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  return "—";
+}
+
+function currency(value: unknown) {
+  return typeof value === "number"
+    ? new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(value)
     : "—";
+}
+
+async function problemMessage(response: Response, fallback: string) {
+  try {
+    const body = (await response.json()) as { detail?: string; title?: string };
+    return body.detail || body.title || fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export default function AdminConsole() {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
-  const [tab, setTab] = useState<Resource>("catalog");
+  const [resource, setResource] = useState<Resource>("dashboard");
   const [rows, setRows] = useState<Row[]>([]);
+  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [influencers, setInfluencers] = useState<Row[]>([]);
+  const [products, setProducts] = useState<Row[]>([]);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const loadResource = useCallback(async (resource: Resource) => {
-    const response = await fetch(`/api/admin/${resource}`, {
-      credentials: "same-origin",
-      cache: "no-store",
-    });
-    if (!response.ok) throw new Error("No fue posible cargar los datos.");
+  const loadResource = useCallback(async (next: Resource) => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/${next}`, { credentials: "same-origin", cache: "no-store" });
+      if (!response.ok) throw new Error(await problemMessage(response, "No fue posible cargar los datos."));
+      const body = (await response.json()) as { data: Row[] | Dashboard };
+      if (next === "dashboard") {
+        setDashboard(body.data as Dashboard);
+        setRows([]);
+      } else {
+        const data = body.data as Row[];
+        setRows(data);
+        if (next === "influencers") setInfluencers(data);
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "No fue posible cargar los datos.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const refreshInfluencers = useCallback(async () => {
+    const response = await fetch("/api/admin/influencers", { credentials: "same-origin", cache: "no-store" });
+    if (!response.ok) return;
     const body = (await response.json()) as { data: Row[] };
-    setRows(body.data);
+    setInfluencers(body.data);
+  }, []);
+
+  const refreshProducts = useCallback(async () => {
+    const response = await fetch("/api/admin/catalog", { credentials: "same-origin", cache: "no-store" });
+    if (!response.ok) return;
+    const body = (await response.json()) as { data: Row[] };
+    setProducts(body.data);
   }, []);
 
   useEffect(() => {
-    void fetch("/api/admin/auth/session", {
-      credentials: "same-origin",
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return ((await response.json()) as { data: Session }).data;
-      })
+    void fetch("/api/admin/auth/session", { credentials: "same-origin", cache: "no-store" })
+      .then(async (response) => response.ok ? ((await response.json()) as { data: Session }).data : null)
       .then(async (current) => {
         setSession(current);
-        if (current) await loadResource("catalog");
+        if (current) await Promise.all([loadResource("dashboard"), refreshInfluencers(), refreshProducts()]);
       })
       .finally(() => setChecking(false));
-  }, [loadResource]);
+  }, [loadResource, refreshInfluencers, refreshProducts]);
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage("");
+    setError("");
     const form = new FormData(event.currentTarget);
     const response = await fetch("/api/admin/auth/login", {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        email: form.get("email"),
-        password: form.get("password"),
-        totp: form.get("totp") || undefined,
-      }),
+      body: JSON.stringify({ email: form.get("email"), password: form.get("password"), totp: form.get("totp") || undefined }),
     });
     if (!response.ok) {
-      setMessage("No fue posible iniciar sesión. Revisa tus credenciales.");
+      setError("Acceso rechazado. Revisa las credenciales y el código de seguridad.");
       return;
     }
     const body = (await response.json()) as { data: Session };
     setSession(body.data);
-    await loadResource("catalog");
+    await Promise.all([loadResource("dashboard"), refreshInfluencers(), refreshProducts()]);
   }
 
   async function logout() {
-    await fetch("/api/admin/auth/logout", {
-      method: "POST",
-      credentials: "same-origin",
-    });
+    await fetch("/api/admin/auth/logout", { method: "POST", credentials: "same-origin" });
     setSession(null);
     setRows([]);
+    setDashboard(null);
   }
 
-  async function mutate(payload: unknown) {
+  async function mutate(target: Resource, payload: unknown) {
+    setError("");
     setMessage("");
-    const response = await fetch(`/api/admin/${tab}`, {
+    const response = await fetch(`/api/admin/${target}`, {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      setMessage("El cambio fue rechazado. Revisa los datos o permisos.");
+      setError(await problemMessage(response, "El cambio fue rechazado. Revisa los datos y permisos."));
+      return false;
+    }
+    setMessage("Cambio guardado y registrado en auditoría.");
+    await Promise.all([loadResource("dashboard"), refreshInfluencers(), refreshProducts()]);
+    if (resource !== "dashboard") await loadResource(resource);
+    return true;
+  }
+
+  async function remove(target: Resource, id: string) {
+    if (!window.confirm(target.includes("media") ? "¿Eliminar esta fotografía?" : "¿Archivar este registro?")) return;
+    const response = await fetch(`/api/admin/${target}?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      credentials: "same-origin",
+    });
+    if (!response.ok) {
+      setError(await problemMessage(response, "No fue posible completar la acción."));
       return;
     }
-    setMessage("Cambio guardado y auditado.");
-    await loadResource(tab);
+    setMessage(target.includes("media") ? "Fotografía eliminada." : "Registro archivado.");
+    await Promise.all([loadResource(resource), refreshInfluencers()]);
   }
 
-  if (checking) {
-    return <main className="min-h-screen bg-[#111311] p-8 text-[#F4F1E9]">Cargando…</main>;
+  function selectResource(next: Resource) {
+    setResource(next);
+    setMessage("");
+    setError("");
+    void loadResource(next);
   }
 
-  if (!session) {
-    return (
-      <main className="grid min-h-screen place-items-center bg-[#111311] px-6 text-[#F4F1E9]">
-        <form
-          onSubmit={login}
-          className="w-full max-w-md rounded-2xl border border-white/15 bg-[#1a1e1b] p-8 shadow-2xl"
-        >
-          <p className="text-sm uppercase tracking-[0.28em] text-[#B8D2D2]">PUDU · Operaciones</p>
-          <h1 className="mt-3 text-4xl font-semibold">Acceso privado</h1>
-          <p className="mt-2 text-sm text-white/60">Sesión protegida y registrada en auditoría.</p>
-          <label className="mt-8 block text-sm" htmlFor="email">Correo</label>
-          <input className="mt-2 min-h-12 w-full rounded-lg border border-white/20 bg-black/20 px-4" id="email" name="email" type="email" autoComplete="username" required />
-          <label className="mt-5 block text-sm" htmlFor="password">Contraseña</label>
-          <input className="mt-2 min-h-12 w-full rounded-lg border border-white/20 bg-black/20 px-4" id="password" name="password" type="password" autoComplete="current-password" minLength={12} required />
-          <label className="mt-5 block text-sm" htmlFor="totp">Código de 6 dígitos</label>
-          <input className="mt-2 min-h-12 w-full rounded-lg border border-white/20 bg-black/20 px-4" id="totp" name="totp" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" />
-          {message ? <p className="mt-4 text-sm text-[#E99A78]" role="alert">{message}</p> : null}
-          <button className="mt-8 min-h-12 w-full rounded-lg bg-[#D66A3A] px-5 font-semibold text-white hover:bg-[#e17748]" type="submit">Ingresar</button>
-        </form>
-      </main>
-    );
-  }
+  if (checking) return <main className="grid min-h-screen place-items-center bg-[#111311] text-[#f4f1e9]">Preparando operaciones…</main>;
+  if (!session) return <LoginScreen onSubmit={login} error={error} />;
 
+  const heading = resourceTitle[resource];
   return (
-    <main className="min-h-screen bg-[#F4F1E9] text-[#111311]">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-black/10 bg-[#111311] px-6 py-5 text-[#F4F1E9] md:px-10">
-        <div><p className="text-xs tracking-[0.3em] text-[#B8D2D2]">PUDU</p><h1 className="text-2xl font-semibold">Panel operativo</h1></div>
-        <div className="text-right text-sm"><p>{session.email} · {session.role}</p><button className="mt-1 underline" onClick={logout}>Cerrar sesión</button></div>
-      </header>
-      <div className="mx-auto max-w-7xl px-6 py-8 md:px-10">
-        <nav className="flex gap-2 overflow-x-auto" aria-label="Áreas administrativas">
-          {tabs.map((item) => <button key={item.id} onClick={() => { setTab(item.id); void loadResource(item.id); }} className={`min-h-11 rounded-full px-5 text-sm ${tab === item.id ? "bg-[#24362B] text-white" : "border border-black/15"}`}>{item.label}</button>)}
+    <main className="min-h-screen bg-[#ece9e1] text-[#111311] lg:grid lg:grid-cols-[270px_1fr]">
+      <aside className="border-b border-white/10 bg-[#111311] text-[#f4f1e9] lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r">
+        <div className="flex min-h-24 items-center justify-between border-b border-white/10 px-6">
+          <div><p className="text-[10px] font-bold tracking-[0.32em] text-[#b8d2d2]">PUDU</p><p className="mt-1 font-semibold">Field Operations</p></div>
+          <span className="grid size-10 place-items-center border border-white/20 text-xs text-[#d66a3a]">CL</span>
+        </div>
+        <nav className="flex gap-2 overflow-x-auto p-4 lg:block lg:h-[calc(100vh-190px)] lg:overflow-y-auto" aria-label="Administración">
+          {navigation.map((group) => (
+            <div className="shrink-0 lg:mb-7" key={group.label}>
+              <p className="mb-2 hidden px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white/38 lg:block">{group.label}</p>
+              <div className="flex gap-1 lg:block">
+                {group.items.map((item) => (
+                  <button
+                    key={item.id}
+                    className={`min-h-11 whitespace-nowrap border-l-2 px-3 text-left text-sm lg:block lg:w-full ${resource === item.id ? "border-[#d66a3a] bg-white/8 text-white" : "border-transparent text-white/62 hover:bg-white/5 hover:text-white"}`}
+                    onClick={() => selectResource(item.id)}
+                    type="button"
+                  >{item.label}</button>
+                ))}
+              </div>
+            </div>
+          ))}
         </nav>
-        <div className="mt-8 flex items-end justify-between gap-4"><div><p className="text-sm uppercase tracking-[0.2em] text-[#777A74]">Gestión</p><h2 className="text-4xl font-semibold">{tabs.find((item) => item.id === tab)?.label}</h2></div><button className="min-h-11 rounded-lg border border-black/20 px-4" onClick={() => void loadResource(tab)}>Actualizar</button></div>
-        {message ? <p className="mt-5 rounded-lg bg-white p-4 text-sm" role="status">{message}</p> : null}
-        <ResourceForm resource={tab} mutate={mutate} reload={() => loadResource(tab)} setMessage={setMessage} />
-        <section className="mt-6 overflow-x-auto rounded-xl border border-black/10 bg-white">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="bg-[#24362B] text-white"><tr>{columns(tab).map((column) => <th key={column.key} className="px-4 py-3 font-medium">{column.label}</th>)}<th className="px-4 py-3">Acción</th></tr></thead>
-            <tbody>{rows.map((row) => <tr key={row.id} className="border-t border-black/10">{columns(tab).map((column) => <td key={column.key} className="px-4 py-3">{text(row[column.key])}</td>)}<td className="px-4 py-3"><RowAction resource={tab} row={row} mutate={mutate} /></td></tr>)}</tbody>
-          </table>
-          {rows.length === 0 ? <p className="p-8 text-center text-[#777A74]">No hay registros.</p> : null}
-        </section>
-      </div>
+        <div className="hidden border-t border-white/10 p-5 text-xs text-white/55 lg:block">
+          <p className="truncate text-white/80">{session.email}</p>
+          <p className="mt-1">{session.role}</p>
+          <button className="mt-4 min-h-11 text-[#b8d2d2] underline underline-offset-4" onClick={logout}>Cerrar sesión</button>
+        </div>
+      </aside>
+
+      <section className="min-w-0">
+        <header className="border-b border-[#cbc8bf] bg-[#f4f1e9] px-5 py-7 md:px-8 lg:px-12">
+          <div className="mx-auto flex max-w-[1500px] items-end justify-between gap-6">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#777a74]">{heading.eyebrow}</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em] md:text-5xl">{heading.title}</h1>
+              <p className="mt-2 max-w-2xl text-sm text-[#5d605b]">{heading.description}</p>
+            </div>
+            <button className={`${secondaryButton} hidden md:block`} onClick={() => void loadResource(resource)} disabled={loading}>Actualizar</button>
+          </div>
+        </header>
+        <div className="mx-auto max-w-[1500px] p-5 md:p-8 lg:p-12">
+          {error ? <p className="mb-6 border-l-4 border-[#b74232] bg-white p-4 text-sm" role="alert">{error}</p> : null}
+          {message ? <p className="mb-6 border-l-4 border-[#3e6b4b] bg-white p-4 text-sm" role="status">{message}</p> : null}
+          {loading ? <p className="mb-5 text-sm text-[#777a74]">Actualizando información…</p> : null}
+          <ResourceView
+            resource={resource}
+            rows={rows}
+            dashboard={dashboard}
+            influencers={influencers}
+            products={products}
+            role={session.role}
+            mutate={mutate}
+            remove={remove}
+            reload={() => loadResource(resource)}
+            setError={setError}
+            setMessage={setMessage}
+          />
+        </div>
+      </section>
     </main>
   );
 }
 
-function columns(resource: Resource) {
-  if (resource === "catalog") return [{ key: "name", label: "Producto" }, { key: "baseSku", label: "SKU base" }, { key: "status", label: "Estado" }, { key: "priceClp", label: "Precio CLP" }];
-  if (resource === "inventory") return [{ key: "sku", label: "SKU variante" }, { key: "size", label: "Talla" }, { key: "stockOnHand", label: "Físico" }, { key: "stockReserved", label: "Reservado" }];
-  if (resource === "shipping-zones") return [{ key: "code", label: "Código" }, { key: "name", label: "Zona" }, { key: "priceClp", label: "Tarifa CLP" }, { key: "freeAboveClp", label: "Gratis desde" }];
-  if (resource === "media") return [{ key: "productId", label: "Producto ID" }, { key: "altText", label: "Texto alternativo" }, { key: "url", label: "URL pública" }];
-  if (resource === "variants") return [{ key: "sku", label: "SKU" }, { key: "size", label: "Talla" }, { key: "colorName", label: "Color" }, { key: "active", label: "Activa" }];
-  return [{ key: "id", label: "Pedido" }, { key: "email", label: "Cliente" }, { key: "status", label: "Estado" }, { key: "totalClp", label: "Total CLP" }];
+function LoginScreen({ onSubmit, error }: { onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>; error: string }) {
+  return (
+    <main className="grid min-h-screen bg-[#111311] text-[#f4f1e9] lg:grid-cols-[1.15fr_0.85fr]">
+      <section className="relative hidden overflow-hidden border-r border-white/10 p-14 lg:flex lg:flex-col lg:justify-between">
+        <div className="absolute inset-0 opacity-20 [background-image:repeating-radial-gradient(ellipse_at_20%_80%,transparent_0,transparent_28px,#b8d2d2_29px,transparent_30px)]" />
+        <p className="relative text-xs font-bold tracking-[0.3em] text-[#b8d2d2]">PUDU · OPERACIONES</p>
+        <div className="relative max-w-xl">
+          <p className="text-sm uppercase tracking-[0.2em] text-[#d66a3a]">Backoffice privado</p>
+          <h1 className="mt-5 text-7xl font-semibold leading-[0.88] tracking-[-0.06em]">La marca también se construye detrás de escena.</h1>
+        </div>
+        <p className="relative text-xs text-white/45">CATÁLOGO · ARCHIVO · INVENTARIO · PEDIDOS</p>
+      </section>
+      <section className="grid place-items-center px-6 py-12">
+        <form className="w-full max-w-md" onSubmit={onSubmit}>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#b8d2d2]">Acceso autorizado</p>
+          <h2 aria-label="Acceso privado" className="mt-3 text-4xl font-semibold">Panel administrativo</h2>
+          <p className="mt-3 text-sm text-white/55">Sesión protegida, limitada por rol y registrada en auditoría.</p>
+          <label className="mt-8 block text-sm" htmlFor="email">Correo</label>
+          <input className={`${inputClass} mt-2 border-white/20 bg-white/5 text-white focus:border-[#b8d2d2]`} id="email" name="email" type="email" autoComplete="username" required />
+          <label className="mt-5 block text-sm" htmlFor="password">Contraseña</label>
+          <input className={`${inputClass} mt-2 border-white/20 bg-white/5 text-white focus:border-[#b8d2d2]`} id="password" name="password" type="password" autoComplete="current-password" minLength={12} required />
+          <label className="mt-5 block text-sm" htmlFor="totp">Código de seguridad</label>
+          <input className={`${inputClass} mt-2 border-white/20 bg-white/5 text-white focus:border-[#b8d2d2]`} id="totp" name="totp" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" placeholder="6 dígitos" />
+          {error ? <p className="mt-4 border-l-2 border-[#d66a3a] pl-3 text-sm text-[#f0a687]" role="alert">{error}</p> : null}
+          <button className="mt-8 min-h-12 w-full bg-[#d66a3a] px-5 font-bold text-white hover:bg-[#e17748] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b8d2d2]" type="submit">Ingresar de forma segura</button>
+        </form>
+      </section>
+    </main>
+  );
 }
 
-const fieldClass = "min-h-11 rounded-lg border border-black/20 bg-white px-3";
-
-function ResourceForm({ resource, mutate, reload, setMessage }: { resource: Resource; mutate: (payload: unknown) => Promise<void>; reload: () => Promise<void>; setMessage: (value: string) => void }) {
-  if (resource === "catalog") return <form className="mt-6 grid gap-3 rounded-xl border border-black/10 bg-white p-5 md:grid-cols-3" onSubmit={(event) => { event.preventDefault(); const f = new FormData(event.currentTarget); void mutate({ id: f.get("id") || undefined, slug: f.get("slug"), baseSku: f.get("baseSku"), name: f.get("name"), subtitle: f.get("subtitle"), description: f.get("description"), priceClp: Number(f.get("priceClp")), featured: f.get("featured") === "on", status: f.get("status") }); }}>
-    <h3 className="text-xl font-semibold md:col-span-3">Crear o editar producto</h3>
-    <label>ID para editar (opcional)<input className={`mt-1 w-full ${fieldClass}`} name="id" /></label>
-    <label>Slug<input className={`mt-1 w-full ${fieldClass}`} name="slug" required pattern="[a-z0-9-]+" /></label>
-    <label>SKU base<input className={`mt-1 w-full ${fieldClass}`} name="baseSku" required /></label>
-    <label>Nombre<input className={`mt-1 w-full ${fieldClass}`} name="name" required /></label>
-    <label>Subtítulo<input className={`mt-1 w-full ${fieldClass}`} name="subtitle" required /></label>
-    <label>Precio CLP<input className={`mt-1 w-full ${fieldClass}`} name="priceClp" type="number" min="0" required /></label>
-    <label className="md:col-span-2">Descripción<textarea className={`mt-1 min-h-24 w-full ${fieldClass}`} name="description" minLength={20} required /></label>
-    <label>Estado<select className={`mt-1 w-full ${fieldClass}`} name="status"><option>DRAFT</option><option>ACTIVE</option><option>ARCHIVED</option></select></label>
-    <label><input name="featured" type="checkbox" /> Destacado</label><button className="min-h-11 rounded-lg bg-[#24362B] px-5 text-white" type="submit">Guardar producto</button>
-  </form>;
-  if (resource === "shipping-zones") return <form className="mt-6 grid gap-3 rounded-xl border border-black/10 bg-white p-5 md:grid-cols-3" onSubmit={(event) => { event.preventDefault(); const f = new FormData(event.currentTarget); void mutate({ code: f.get("code"), name: f.get("name"), communes: String(f.get("communes") || "").split(",").map((v) => v.trim()).filter(Boolean), priceClp: Number(f.get("priceClp")), freeAboveClp: Number(f.get("freeAboveClp")), active: f.get("active") === "on" }); }}>
-    <h3 className="text-xl font-semibold md:col-span-3">Crear o editar zona</h3>
-    <label>Código<input className={`mt-1 w-full ${fieldClass}`} name="code" required /></label><label>Nombre<input className={`mt-1 w-full ${fieldClass}`} name="name" required /></label><label>Comunas, separadas por coma<input className={`mt-1 w-full ${fieldClass}`} name="communes" /></label>
-    <label>Tarifa CLP<input className={`mt-1 w-full ${fieldClass}`} name="priceClp" type="number" min="0" required /></label><label>Gratis desde<input className={`mt-1 w-full ${fieldClass}`} name="freeAboveClp" type="number" min="0" required /></label><label><input defaultChecked name="active" type="checkbox" /> Activa</label><button className="min-h-11 rounded-lg bg-[#24362B] px-5 text-white" type="submit">Guardar zona</button>
-  </form>;
-  if (resource === "media") return <form className="mt-6 grid gap-3 rounded-xl border border-black/10 bg-white p-5 md:grid-cols-2" onSubmit={async (event) => { event.preventDefault(); const f = new FormData(event.currentTarget); const file = f.get("file"); if (!(file instanceof File)) return; const productId = String(f.get("productId")); const presign = await fetch("/api/admin/media", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "presign", productId, fileName: file.name, contentType: file.type, size: file.size }) }); if (!presign.ok) { setMessage("No fue posible preparar la carga."); return; } const signed = (await presign.json()) as { data: { uploadUrl: string; key: string; publicUrl: string } }; const upload = await fetch(signed.data.uploadUrl, { method: "PUT", headers: { "content-type": file.type }, body: file }); if (!upload.ok) { setMessage("R2 rechazó la carga."); return; } await fetch("/api/admin/media", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "associate", productId, key: signed.data.key, url: signed.data.publicUrl, altText: f.get("altText") }) }); setMessage("Medio cargado y asociado."); await reload(); }}>
-    <h3 className="text-xl font-semibold md:col-span-2">Cargar imagen a R2</h3><label>Producto ID<input className={`mt-1 w-full ${fieldClass}`} name="productId" required /></label><label>Texto alternativo<input className={`mt-1 w-full ${fieldClass}`} name="altText" required minLength={3} /></label><label>Imagen (PNG, JPEG o WebP; máximo 8 MB)<input className="mt-1 block w-full" name="file" type="file" accept="image/png,image/jpeg,image/webp" required /></label><button className="min-h-11 rounded-lg bg-[#24362B] px-5 text-white" type="submit">Subir y asociar</button>
-  </form>;
-  if (resource === "variants") return <form className="mt-6 grid gap-3 rounded-xl border border-black/10 bg-white p-5 md:grid-cols-3" onSubmit={(event) => { event.preventDefault(); const f = new FormData(event.currentTarget); void mutate({ id: f.get("id") || undefined, productId: f.get("productId"), sku: f.get("sku"), size: f.get("size"), colorName: f.get("colorName"), colorHex: f.get("colorHex"), stockOnHand: Number(f.get("stockOnHand")), active: f.get("active") === "on" }); }}>
-    <h3 className="text-xl font-semibold md:col-span-3">Crear o editar variante</h3><label>ID para editar (opcional)<input className={`mt-1 w-full ${fieldClass}`} name="id" /></label><label>Producto ID<input className={`mt-1 w-full ${fieldClass}`} name="productId" required /></label><label>SKU completo<input className={`mt-1 w-full ${fieldClass}`} name="sku" required /></label><label>Talla<input className={`mt-1 w-full ${fieldClass}`} name="size" required /></label><label>Color<input className={`mt-1 w-full ${fieldClass}`} name="colorName" required /></label><label>Color hexadecimal<input className={`mt-1 w-full ${fieldClass}`} name="colorHex" defaultValue="#111311" pattern="#[0-9A-Fa-f]{6}" required /></label><label>Stock físico<input className={`mt-1 w-full ${fieldClass}`} name="stockOnHand" type="number" min="0" required /></label><label><input defaultChecked name="active" type="checkbox" /> Activa</label><button className="min-h-11 rounded-lg bg-[#24362B] px-5 text-white" type="submit">Guardar variante</button>
-  </form>;
-  return null;
+function ResourceView(props: {
+  resource: Resource;
+  rows: Row[];
+  dashboard: Dashboard | null;
+  influencers: Row[];
+  products: Row[];
+  role: Session["role"];
+  mutate: (resource: Resource, payload: unknown) => Promise<boolean>;
+  remove: (resource: Resource, id: string) => Promise<void>;
+  reload: () => Promise<void>;
+  setError: (value: string) => void;
+  setMessage: (value: string) => void;
+}) {
+  if (props.resource === "dashboard") return <DashboardView data={props.dashboard} />;
+  if (props.resource === "influencers") return <InfluencersView {...props} />;
+  if (props.resource === "influencer-media") return <MediaView {...props} influencerMode />;
+  if (props.resource === "media") return <MediaView {...props} influencerMode={false} />;
+  if (props.resource === "catalog") return <ProductsView {...props} />;
+  if (props.resource === "inventory") return <InventoryView {...props} />;
+  if (props.resource === "variants") return <VariantsView {...props} />;
+  if (props.resource === "shipping-zones") return <ShippingView {...props} />;
+  return <LedgerTable resource={props.resource} rows={props.rows} mutate={props.mutate} />;
 }
 
-function RowAction({ resource, row, mutate }: { resource: Resource; row: Row; mutate: (payload: unknown) => Promise<void> }) {
-  if (resource === "inventory") return <button className="underline" onClick={() => { const value = window.prompt("Nuevo stock físico", text(row.stockOnHand)); if (value && /^\d+$/.test(value)) void mutate({ sku: row.sku, stockOnHand: Number(value) }); }}>Editar stock</button>;
-  if (resource === "orders") return <button className="underline" onClick={() => { const value = window.prompt("Nuevo estado: PREPARING, SHIPPED, COMPLETED, CANCELLED o REVIEW"); if (value) void mutate({ orderId: row.id, status: value.toUpperCase() }); }}>Cambiar estado</button>;
-  return <span className="text-[#777A74]">Solo vista</span>;
+function DashboardView({ data }: { data: Dashboard | null }) {
+  if (!data) return <EmptyState text="No hay métricas disponibles." />;
+  const cards = [
+    ["Productos activos", data.activeProducts, `${data.products} registros totales`],
+    ["Embajadores activos", data.activeInfluencers, `${data.influencers} perfiles`],
+    ["Pedidos abiertos", data.openOrders, `${data.orders} pedidos históricos`],
+    ["Stock crítico", data.lowStock, "Variantes con 5 unidades o menos"],
+  ];
+  return (
+    <div className="space-y-8">
+      <section className="grid border-l border-t border-[#c8c5bc] sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map(([label, value, note]) => (
+          <article className="min-h-48 border-b border-r border-[#c8c5bc] bg-[#f4f1e9] p-6" key={String(label)}>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#777a74]">{label}</p>
+            <p className="mt-7 text-6xl font-semibold tracking-[-0.06em]">{value}</p>
+            <p className="mt-4 text-xs text-[#6a6d67]">{note}</p>
+          </article>
+        ))}
+      </section>
+      <section className="grid gap-0 border border-[#c8c5bc] bg-[#24362b] text-white md:grid-cols-[1fr_320px]">
+        <div className="p-8 md:p-12"><p className="text-xs font-bold tracking-[0.18em] text-[#b8d2d2]">HOY EN PUDU</p><h2 className="mt-5 max-w-3xl text-4xl font-semibold tracking-[-0.04em] md:text-6xl">Un catálogo consistente comienza con un archivo ordenado.</h2></div>
+        <div className="border-t border-white/15 p-8 md:border-l md:border-t-0"><p className="text-sm text-white/65">Archivo visual</p><p className="mt-3 text-5xl font-semibold">{data.media}</p><p className="mt-2 text-xs text-white/55">Fotografías de embajadores registradas</p></div>
+      </section>
+    </div>
+  );
+}
+
+function InfluencersView({ rows, mutate, remove }: { rows: Row[]; mutate: (resource: Resource, payload: unknown) => Promise<boolean>; remove: (resource: Resource, id: string) => Promise<void> }) {
+  const [editing, setEditing] = useState<Row | null>(null);
+  return (
+    <div className="grid gap-8 xl:grid-cols-[minmax(360px,0.75fr)_minmax(0,1.25fr)]">
+      <InfluencerForm key={editing?.id ?? "new"} value={editing} onCancel={() => setEditing(null)} onSave={async (payload) => { const ok = await mutate("influencers", payload); if (ok) setEditing(null); }} />
+      <section className="grid content-start gap-4 sm:grid-cols-2">
+        {rows.map((row) => {
+          const media = Array.isArray(row.media) ? row.media[0] as { url?: string; altText?: string } | undefined : undefined;
+          const count = typeof row._count === "object" && row._count ? Number((row._count as { media?: number }).media ?? 0) : 0;
+          return (
+            <article className="border border-[#c8c5bc] bg-[#f4f1e9]" key={row.id}>
+              <div className="relative aspect-[4/3] overflow-hidden bg-[#d8d4ca]">{media?.url ? <Image className="object-cover" src={media.url} alt={media.altText || ""} fill sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw" unoptimized /> : <div className="grid h-full place-items-center text-xs text-[#777a74]">Sin retrato</div>}</div>
+              <div className="p-5"><div className="flex items-start justify-between gap-4"><div><h3 className="text-2xl font-semibold">{display(row.displayName)}</h3><p className="mt-1 text-xs text-[#6b6e68]">@{display(row.instagramHandle)} · {display(row.location)}</p></div><Status value={display(row.status)} /></div>
+                <p className="mt-4 line-clamp-3 text-sm text-[#555853]">{display(row.bio)}</p><p className="mt-4 text-xs font-bold uppercase tracking-[0.14em] text-[#777a74]">{count} fotografías</p>
+                <div className="mt-5 flex gap-2"><button className={secondaryButton} onClick={() => setEditing(row)}>Editar</button><button className="min-h-11 px-3 text-sm text-[#8f3026] underline" onClick={() => void remove("influencers", row.id)}>Archivar</button></div>
+              </div>
+            </article>
+          );
+        })}
+        {rows.length === 0 ? <EmptyState text="Crea el primer perfil de embajador." /> : null}
+      </section>
+    </div>
+  );
+}
+
+function InfluencerForm({ value, onSave, onCancel }: { value: Row | null; onSave: (payload: unknown) => Promise<void>; onCancel: () => void }) {
+  return (
+    <form className="h-fit border-t-4 border-[#d66a3a] bg-white p-6 xl:sticky xl:top-8" onSubmit={(event) => { event.preventDefault(); const f = new FormData(event.currentTarget); void onSave({ id: value?.id, slug: f.get("slug"), displayName: f.get("displayName"), legalName: f.get("legalName") || null, pronouns: f.get("pronouns") || null, bio: f.get("bio"), location: f.get("location") || null, email: f.get("email") || null, instagramHandle: f.get("instagramHandle") || null, status: f.get("status"), featured: f.get("featured") === "on", sortOrder: Number(f.get("sortOrder")) }); }}>
+      <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#777a74]">{value ? "Editar perfil" : "Nuevo perfil"}</p><h2 className="mt-2 text-3xl font-semibold">Ficha de embajador</h2>
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <Field label="Nombre público"><input className={inputClass} name="displayName" defaultValue={display(value?.displayName)} required /></Field>
+        <Field label="Slug"><input className={inputClass} name="slug" defaultValue={display(value?.slug)} pattern="[a-z0-9-]+" required /></Field>
+        <Field label="Nombre legal"><input className={inputClass} name="legalName" defaultValue={display(value?.legalName) === "—" ? "" : display(value?.legalName)} /></Field>
+        <Field label="Pronombres"><input className={inputClass} name="pronouns" defaultValue={display(value?.pronouns) === "—" ? "" : display(value?.pronouns)} /></Field>
+        <Field label="Ubicación"><input className={inputClass} name="location" defaultValue={display(value?.location) === "—" ? "" : display(value?.location)} /></Field>
+        <Field label="Instagram"><input className={inputClass} name="instagramHandle" defaultValue={display(value?.instagramHandle) === "—" ? "" : display(value?.instagramHandle)} placeholder="usuario" /></Field>
+        <Field label="Correo privado"><input className={inputClass} name="email" type="email" defaultValue={display(value?.email) === "—" ? "" : display(value?.email)} /></Field>
+        <Field label="Orden"><input className={inputClass} name="sortOrder" type="number" min="0" defaultValue={Number(value?.sortOrder ?? 0)} /></Field>
+        <Field label="Estado"><select className={inputClass} name="status" defaultValue={display(value?.status) === "—" ? "DRAFT" : display(value?.status)}><option value="DRAFT">Borrador</option><option value="ACTIVE">Activo</option><option value="INACTIVE">Inactivo</option><option value="ARCHIVED">Archivado</option></select></Field>
+        <label className="flex min-h-11 items-center gap-3 self-end"><input defaultChecked={Boolean(value?.featured)} name="featured" type="checkbox" /> Destacar en campañas</label>
+        <Field label="Biografía" wide><textarea className={`${inputClass} min-h-32 py-3`} name="bio" defaultValue={display(value?.bio) === "—" ? "" : display(value?.bio)} minLength={20} required /></Field>
+      </div>
+      <div className="mt-6 flex flex-wrap gap-3"><button className={primaryButton} type="submit">Guardar perfil</button>{value ? <button className={secondaryButton} type="button" onClick={onCancel}>Cancelar edición</button> : null}</div>
+    </form>
+  );
+}
+
+function ProductsView({ rows, mutate, remove }: { rows: Row[]; mutate: (resource: Resource, payload: unknown) => Promise<boolean>; remove: (resource: Resource, id: string) => Promise<void> }) {
+  const [editing, setEditing] = useState<Row | null>(null);
+  return <div className="space-y-8"><ProductForm key={editing?.id ?? "new"} value={editing} onSave={async (payload) => { const ok = await mutate("catalog", payload); if (ok) setEditing(null); }} onCancel={() => setEditing(null)} /><DataTable columns={[{ key: "name", label: "Producto" }, { key: "baseSku", label: "SKU base" }, { key: "status", label: "Estado" }, { key: "priceClp", label: "Precio", money: true }]} rows={rows} actions={(row) => <><button className="underline" onClick={() => setEditing(row)}>Editar</button><button className="text-[#8f3026] underline" onClick={() => void remove("catalog", row.id)}>Archivar</button></>} /></div>;
+}
+
+function ProductForm({ value, onSave, onCancel }: { value: Row | null; onSave: (payload: unknown) => Promise<void>; onCancel: () => void }) {
+  return <form className="grid gap-4 border-t-4 border-[#24362b] bg-white p-6 md:grid-cols-3" onSubmit={(event) => { event.preventDefault(); const f = new FormData(event.currentTarget); void onSave({ id: value?.id, slug: f.get("slug"), baseSku: f.get("baseSku"), name: f.get("name"), subtitle: f.get("subtitle"), description: f.get("description"), priceClp: Number(f.get("priceClp")), featured: f.get("featured") === "on", status: f.get("status") }); }}>
+    <div className="md:col-span-3"><p className="text-xs font-bold uppercase tracking-[0.15em] text-[#777a74]">{value ? "Editar producto" : "Nuevo producto"}</p><h2 className="mt-2 text-3xl font-semibold">Ficha comercial</h2></div>
+    <Field label="Nombre"><input className={inputClass} name="name" defaultValue={display(value?.name) === "—" ? "" : display(value?.name)} required /></Field><Field label="Slug"><input className={inputClass} name="slug" defaultValue={display(value?.slug) === "—" ? "" : display(value?.slug)} pattern="[a-z0-9-]+" required /></Field><Field label="SKU base"><input className={inputClass} name="baseSku" defaultValue={display(value?.baseSku) === "—" ? "" : display(value?.baseSku)} required /></Field>
+    <Field label="Subtítulo"><input className={inputClass} name="subtitle" defaultValue={display(value?.subtitle) === "—" ? "" : display(value?.subtitle)} required /></Field><Field label="Precio CLP"><input className={inputClass} name="priceClp" type="number" min="0" defaultValue={Number(value?.priceClp ?? 0)} required /></Field><Field label="Estado"><select className={inputClass} name="status" defaultValue={display(value?.status) === "—" ? "DRAFT" : display(value?.status)}><option value="DRAFT">Borrador</option><option value="ACTIVE">Activo</option><option value="ARCHIVED">Archivado</option></select></Field>
+    <Field label="Descripción" wide><textarea className={`${inputClass} min-h-28 py-3`} name="description" defaultValue={display(value?.description) === "—" ? "" : display(value?.description)} minLength={20} required /></Field><label className="flex min-h-11 items-center gap-3"><input name="featured" type="checkbox" defaultChecked={Boolean(value?.featured)} /> Producto destacado</label>
+    <div className="flex gap-3 md:col-span-3"><button className={primaryButton} type="submit">Guardar producto</button>{value ? <button className={secondaryButton} type="button" onClick={onCancel}>Cancelar</button> : null}</div>
+  </form>;
+}
+
+function MediaView({ rows, influencers, products, influencerMode, setError, setMessage, reload, remove }: { rows: Row[]; influencers: Row[]; products: Row[]; influencerMode: boolean; setError: (value: string) => void; setMessage: (value: string) => void; reload: () => Promise<void>; remove: (resource: Resource, id: string) => Promise<void> }) {
+  const targetResource: Resource = influencerMode ? "influencer-media" : "media";
+  return <div className="space-y-8"><form className="grid gap-4 border-t-4 border-[#d66a3a] bg-white p-6 md:grid-cols-3" onSubmit={async (event) => {
+    event.preventDefault(); setError(""); const f = new FormData(event.currentTarget); const file = f.get("file"); if (!(file instanceof File) || file.size === 0) return;
+    const idField = influencerMode ? "influencerId" : "productId"; const targetId = String(f.get(idField));
+    const presignPayload = { action: "presign", [idField]: targetId, fileName: file.name, contentType: file.type, size: file.size };
+    const presign = await fetch(`/api/admin/${targetResource}`, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(presignPayload) });
+    if (!presign.ok) { setError(await problemMessage(presign, "No fue posible preparar la carga. Configura R2 para nuevas fotografías.")); return; }
+    const signed = (await presign.json()) as { data: { uploadUrl: string; key: string; publicUrl: string } };
+    const upload = await fetch(signed.data.uploadUrl, { method: "PUT", headers: { "content-type": file.type }, body: file });
+    if (!upload.ok) { setError("El almacenamiento rechazó la imagen."); return; }
+    const associatePayload = influencerMode ? { action: "associate", influencerId: targetId, key: signed.data.key, url: signed.data.publicUrl, altText: f.get("altText"), caption: f.get("caption") || null, kind: f.get("kind"), sortOrder: Number(f.get("sortOrder")) } : { action: "associate", productId: targetId, key: signed.data.key, url: signed.data.publicUrl, altText: f.get("altText") };
+    const associate = await fetch(`/api/admin/${targetResource}`, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(associatePayload) });
+    if (!associate.ok) { setError(await problemMessage(associate, "No fue posible registrar la fotografía.")); return; }
+    setMessage("Fotografía cargada y registrada."); event.currentTarget.reset(); await reload();
+  }}>
+    <div className="md:col-span-3"><p className="text-xs font-bold uppercase tracking-[0.15em] text-[#777a74]">Nueva imagen</p><h2 className="mt-2 text-3xl font-semibold">Carga segura a la biblioteca</h2></div>
+    {influencerMode ? <Field label="Embajador"><select className={inputClass} name="influencerId" required><option value="">Seleccionar perfil</option>{influencers.map((item) => <option key={item.id} value={item.id}>{display(item.displayName)}</option>)}</select></Field> : <Field label="Producto"><select className={inputClass} name="productId" required><option value="">Seleccionar producto</option>{products.map((item) => <option key={item.id} value={item.id}>{display(item.name)}</option>)}</select></Field>}
+    <Field label="Texto alternativo"><input className={inputClass} name="altText" minLength={3} required /></Field><Field label="Imagen"><input className={`${inputClass} py-2`} name="file" type="file" accept="image/png,image/jpeg,image/webp" required /></Field>
+    {influencerMode ? <><Field label="Tipo"><select className={inputClass} name="kind"><option value="PORTRAIT">Retrato</option><option value="LIFESTYLE">Lifestyle</option><option value="CAMPAIGN">Campaña</option><option value="PRODUCT">Producto</option></select></Field><Field label="Orden"><input className={inputClass} name="sortOrder" type="number" min="0" defaultValue="0" /></Field><Field label="Pie de foto"><input className={inputClass} name="caption" /></Field></> : null}
+    <button className={`${primaryButton} md:col-span-3 md:w-fit`} type="submit">Subir fotografía</button>
+  </form><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{rows.map((row) => <article className="border border-[#c8c5bc] bg-[#f4f1e9]" key={row.id}><div className="relative aspect-[4/3] bg-[#d8d4ca]"><Image className="object-cover" src={display(row.url)} alt={display(row.altText)} fill sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw" unoptimized /></div><div className="p-4"><p className="text-xs font-bold uppercase tracking-[0.12em] text-[#777a74]">{influencerMode ? display(row.kind) : "Producto"}</p><p className="mt-2 text-sm">{display(row.altText)}</p><p className="mt-1 text-xs text-[#777a74]">{influencerMode ? display((row.influencer as { displayName?: unknown } | undefined)?.displayName) : display((row.product as { name?: unknown } | undefined)?.name)}</p><button className="mt-4 min-h-11 text-sm text-[#8f3026] underline" onClick={() => void remove(targetResource, row.id)}>Eliminar fotografía</button></div></article>)}{rows.length === 0 ? <EmptyState text="Aún no hay fotografías en esta biblioteca." /> : null}</section></div>;
+}
+
+function InventoryView({ rows, mutate }: { rows: Row[]; mutate: (resource: Resource, payload: unknown) => Promise<boolean> }) {
+  return <DataTable columns={[{ key: "sku", label: "SKU" }, { key: "size", label: "Talla" }, { key: "colorName", label: "Color" }, { key: "stockOnHand", label: "Físico" }, { key: "stockReserved", label: "Reservado" }, { key: "available", label: "Disponible", derive: (row) => Number(row.stockOnHand ?? 0) - Number(row.stockReserved ?? 0) }]} rows={rows} actions={(row) => <StockEditor row={row} mutate={mutate} />} />;
+}
+
+function StockEditor({ row, mutate }: { row: Row; mutate: (resource: Resource, payload: unknown) => Promise<boolean> }) {
+  const [value, setValue] = useState(Number(row.stockOnHand ?? 0));
+  return <div className="flex items-center gap-2"><input aria-label={`Stock ${display(row.sku)}`} className="h-10 w-20 border border-[#aaa89f] bg-white px-2" min={Number(row.stockReserved ?? 0)} type="number" value={value} onChange={(event) => setValue(Number(event.target.value))} /><button className="min-h-10 px-2 text-sm underline" onClick={() => void mutate("inventory", { sku: row.sku, stockOnHand: value })}>Guardar</button></div>;
+}
+
+function VariantsView({ rows, products, mutate }: { rows: Row[]; products: Row[]; mutate: (resource: Resource, payload: unknown) => Promise<boolean> }) {
+  return <div className="space-y-6"><VariantForm products={products} mutate={mutate} /><DataTable columns={[{ key: "sku", label: "SKU" }, { key: "size", label: "Talla" }, { key: "colorName", label: "Color" }, { key: "stockOnHand", label: "Stock" }, { key: "active", label: "Activa" }]} rows={rows} /></div>;
+}
+
+function VariantForm({ products, mutate }: { products: Row[]; mutate: (resource: Resource, payload: unknown) => Promise<boolean> }) {
+  return <form className="grid gap-4 border-t-4 border-[#24362b] bg-white p-6 md:grid-cols-4" onSubmit={(event) => { event.preventDefault(); const f = new FormData(event.currentTarget); void mutate("variants", { productId: f.get("productId"), sku: f.get("sku"), size: f.get("size"), colorName: f.get("colorName"), colorHex: f.get("colorHex"), active: f.get("active") === "on", stockOnHand: Number(f.get("stockOnHand")) }); }}><h2 className="text-2xl font-semibold md:col-span-4">Nueva variante</h2><Field label="Producto"><select className={inputClass} name="productId" required><option value="">Seleccionar producto</option>{products.map((item) => <option key={item.id} value={item.id}>{display(item.name)}</option>)}</select></Field><Field label="SKU"><input className={inputClass} name="sku" required /></Field><Field label="Talla"><input className={inputClass} name="size" required /></Field><Field label="Color"><input className={inputClass} name="colorName" required /></Field><Field label="Color HEX"><input className={inputClass} name="colorHex" defaultValue="#111311" pattern="#[0-9A-Fa-f]{6}" required /></Field><Field label="Stock"><input className={inputClass} name="stockOnHand" type="number" min="0" defaultValue="0" required /></Field><label className="flex min-h-11 items-center gap-3"><input name="active" type="checkbox" defaultChecked /> Activa</label><button className={primaryButton}>Guardar variante</button></form>;
+}
+
+function ShippingView({ rows, mutate }: { rows: Row[]; mutate: (resource: Resource, payload: unknown) => Promise<boolean> }) {
+  return <div className="space-y-6"><form className="grid gap-4 border-t-4 border-[#24362b] bg-white p-6 md:grid-cols-3" onSubmit={(event) => { event.preventDefault(); const f = new FormData(event.currentTarget); void mutate("shipping-zones", { code: f.get("code"), name: f.get("name"), communes: String(f.get("communes") || "").split(",").map((value) => value.trim()).filter(Boolean), priceClp: Number(f.get("priceClp")), freeAboveClp: Number(f.get("freeAboveClp")), active: f.get("active") === "on" }); }}><h2 className="text-2xl font-semibold md:col-span-3">Crear o actualizar zona</h2><Field label="Código"><input className={inputClass} name="code" required /></Field><Field label="Nombre"><input className={inputClass} name="name" required /></Field><Field label="Comunas separadas por coma"><input className={inputClass} name="communes" /></Field><Field label="Tarifa CLP"><input className={inputClass} name="priceClp" type="number" min="0" required /></Field><Field label="Gratis desde"><input className={inputClass} name="freeAboveClp" type="number" min="0" required /></Field><label className="flex min-h-11 items-center gap-3"><input name="active" type="checkbox" defaultChecked /> Activa</label><button className={primaryButton}>Guardar zona</button></form><DataTable columns={[{ key: "code", label: "Código" }, { key: "name", label: "Zona" }, { key: "priceClp", label: "Tarifa", money: true }, { key: "freeAboveClp", label: "Gratis desde", money: true }, { key: "active", label: "Activa" }]} rows={rows} /></div>;
+}
+
+function LedgerTable({ resource, rows, mutate }: { resource: Resource; rows: Row[]; mutate: (resource: Resource, payload: unknown) => Promise<boolean> }) {
+  if (resource === "orders") return <DataTable columns={[{ key: "id", label: "Pedido" }, { key: "email", label: "Cliente" }, { key: "status", label: "Estado" }, { key: "totalClp", label: "Total", money: true }, { key: "createdAt", label: "Fecha" }]} rows={rows} actions={(row) => <OrderEditor row={row} mutate={mutate} />} />;
+  return <DataTable columns={[{ key: "createdAt", label: "Fecha" }, { key: "actor", label: "Actor" }, { key: "action", label: "Acción" }, { key: "targetType", label: "Recurso" }, { key: "targetId", label: "ID" }]} rows={rows} />;
+}
+
+function OrderEditor({ row, mutate }: { row: Row; mutate: (resource: Resource, payload: unknown) => Promise<boolean> }) {
+  const [status, setStatus] = useState("PREPARING");
+  return <div className="flex gap-2"><select className="h-10 border border-[#aaa89f] bg-white px-2" value={status} onChange={(event) => setStatus(event.target.value)}><option>PREPARING</option><option>SHIPPED</option><option>COMPLETED</option><option>CANCELLED</option><option>REVIEW</option></select><button className="underline" onClick={() => void mutate("orders", { orderId: row.id, status })}>Aplicar</button></div>;
+}
+
+function DataTable({ columns, rows, actions }: { columns: Array<{ key: string; label: string; money?: boolean; derive?: (row: Row) => unknown }>; rows: Row[]; actions?: (row: Row) => ReactNode }) {
+  return <section className="overflow-x-auto border border-[#c8c5bc] bg-[#f4f1e9]"><table className="w-full min-w-[760px] text-left text-sm"><thead><tr className="border-b border-[#c8c5bc] bg-[#24362b] text-white">{columns.map((column) => <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.1em]" key={column.key}>{column.label}</th>)}{actions ? <th className="px-4 py-4 text-xs uppercase tracking-[0.1em]">Acciones</th> : null}</tr></thead><tbody>{rows.map((row) => <tr className="border-b border-[#d8d5cc] last:border-0 hover:bg-white" key={row.id}>{columns.map((column) => { const value = column.derive ? column.derive(row) : row[column.key]; return <td className="max-w-[320px] px-4 py-4" key={column.key}>{column.money ? currency(value) : column.key.toLowerCase().includes("status") ? <Status value={display(value)} /> : display(value)}</td>; })}{actions ? <td className="px-4 py-3"><div className="flex gap-4">{actions(row)}</div></td> : null}</tr>)}</tbody></table>{rows.length === 0 ? <EmptyState text="No hay registros para mostrar." /> : null}</section>;
+}
+
+function Field({ label, wide, children }: { label: string; wide?: boolean; children: ReactNode }) {
+  return <label className={`grid content-start gap-1.5 text-xs font-semibold text-[#4f524d] ${wide ? "sm:col-span-2 md:col-span-3" : ""}`}><span>{label}</span>{children}</label>;
+}
+
+function Status({ value }: { value: string }) {
+  const positive = ["ACTIVE", "PAID", "COMPLETED", "SHIPPED", "SENT"].includes(value);
+  const warning = ["DRAFT", "REVIEW", "PENDING_PAYMENT", "PREPARING"].includes(value);
+  return <span className={`inline-flex min-h-7 items-center border px-2 text-[10px] font-bold uppercase tracking-[0.08em] ${positive ? "border-[#7da186] bg-[#e5eee7] text-[#24452c]" : warning ? "border-[#d3a66f] bg-[#f5eadb] text-[#764619]" : "border-[#aaa89f] bg-[#ebe9e2] text-[#595b57]"}`}>{value}</span>;
+}
+
+function EmptyState({ text }: { text: string }) {
+  return <div className="grid min-h-40 place-items-center border border-dashed border-[#aaa89f] bg-[#f4f1e9] p-8 text-center text-sm text-[#777a74]">{text}</div>;
 }
