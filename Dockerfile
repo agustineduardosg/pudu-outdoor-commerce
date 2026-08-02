@@ -34,7 +34,17 @@ ENV NODE_ENV=production
 RUN npx prisma generate
 RUN npm run build
 
-FROM base AS runner
+FROM base AS runtime-base
+RUN rm -rf /usr/local/lib/node_modules \
+  /usr/local/bin/corepack \
+  /usr/local/bin/npm \
+  /usr/local/bin/npx \
+  /usr/local/bin/pnpm \
+  /usr/local/bin/pnpx \
+  /usr/local/bin/yarn \
+  /usr/local/bin/yarnpkg
+
+FROM runtime-base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -59,7 +69,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 CMD ["node", "server.js"]
 
-FROM base AS worker
+FROM runtime-base AS worker
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
