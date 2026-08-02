@@ -45,14 +45,14 @@ export default function Home() {
         </div>
         <div className="ruta-hero__visual">
           <Image
-            src="/images/pudu-ruta-500-hero-v1.avif"
+            src="/images/pudu-ruta-500-hero-v2.avif"
             alt="Concepto PUDU Ruta 500 en color bosque con tres tazas"
             fill
             priority
-            quality={55}
+            quality={80}
             sizes="(max-width: 840px) 100vw, 55vw"
           />
-          <span className="ruta-hero__asset-label">SYNTHETIC CONCEPT / V1</span>
+          <span className="ruta-hero__asset-label">SYNTHETIC CONCEPT / V2</span>
         </div>
         <div className="ruta-hero__coordinates" aria-hidden="true">
           <span>OBJ / 01</span>

@@ -29,9 +29,9 @@ export const metadata: Metadata = {
       "Un termo de 500 ml y tres tazas para compartir el camino. Concepto en validación.",
     images: [
       {
-        url: "/images/pudu-ruta-500-hero-v1.png",
-        width: 1056,
-        height: 1320,
+        url: "/images/pudu-ruta-500-hero-v2.png",
+        width: 1024,
+        height: 1536,
         alt: "Concepto PUDU Ruta 500 en color bosque con tres tazas",
       },
     ],
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     title: "PUDU Ruta 500 — El camino se comparte",
     description:
       "Un termo de 500 ml y tres tazas para compartir el camino. Concepto en validación.",
-    images: ["/images/pudu-ruta-500-hero-v1.png"],
+    images: ["/images/pudu-ruta-500-hero-v2.png"],
   },
 };
 

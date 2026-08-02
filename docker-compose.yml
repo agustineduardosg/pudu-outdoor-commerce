@@ -46,12 +46,14 @@ services:
         NEXT_PUBLIC_GA4_ID: ${NEXT_PUBLIC_GA4_ID:-}
         NEXT_PUBLIC_META_PIXEL_ID: ${NEXT_PUBLIC_META_PIXEL_ID:-}
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}
     restart: unless-stopped
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-pudu}:${POSTGRES_PASSWORD:-pudu_local}@db:5432/${POSTGRES_DB:-pudu}
       APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
       AUTH_SECRET: ${AUTH_SECRET:-local-only-change-before-production}
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}
       ADMIN_BOOTSTRAP_TOKEN: ${ADMIN_BOOTSTRAP_TOKEN:-}
       ADMIN_TOTP_ENCRYPTION_KEY: ${ADMIN_TOTP_ENCRYPTION_KEY:-}
       MERCADO_PAGO_MODE: ${MERCADO_PAGO_MODE:-sandbox}
@@ -90,7 +92,7 @@ services:
   worker:
     build:
       context: .
-      target: runner
+      target: worker
     profiles: ["worker"]
     restart: unless-stopped
     command: ["node", "scripts/worker.mjs"]
