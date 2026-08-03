@@ -30,6 +30,7 @@ function clientFor(cfg: ReturnType<typeof config>) {
   return new S3Client({
     region: "auto",
     endpoint: cfg.endpoint,
+    forcePathStyle: true,
     credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
   });
 }
