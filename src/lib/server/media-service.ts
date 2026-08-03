@@ -31,6 +31,8 @@ function clientFor(cfg: ReturnType<typeof config>) {
     region: "auto",
     endpoint: cfg.endpoint,
     forcePathStyle: true,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
     credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
   });
 }
