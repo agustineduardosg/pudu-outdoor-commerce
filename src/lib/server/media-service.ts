@@ -52,7 +52,6 @@ export async function handleMedia(
       Bucket: cfg.bucket,
       Key: key,
       ContentType: input.contentType,
-      ContentLength: input.size,
     }), { expiresIn: 300 });
     return { uploadUrl, key, publicUrl: new URL(key, cfg.publicUrl.href.endsWith("/") ? cfg.publicUrl : `${cfg.publicUrl.href}/`).href };
   }
@@ -111,7 +110,6 @@ export async function handleInfluencerMedia(
         Bucket: cfg.bucket,
         Key: key,
         ContentType: input.contentType,
-        ContentLength: input.size,
       }),
       { expiresIn: 300 },
     );

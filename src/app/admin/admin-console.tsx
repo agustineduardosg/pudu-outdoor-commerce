@@ -429,25 +429,43 @@ function ProductForm({ value, onSave, onCancel }: { value: Row | null; onSave: (
 
 function MediaView({ rows, influencers, products, influencerMode, setError, setMessage, reload, remove }: { rows: Row[]; influencers: Row[]; products: Row[]; influencerMode: boolean; setError: (value: string) => void; setMessage: (value: string) => void; reload: () => Promise<void>; remove: (resource: Resource, id: string) => Promise<void> }) {
   const targetResource: Resource = influencerMode ? "influencer-media" : "media";
+  const [uploading, setUploading] = useState(false);
   return <div className="space-y-8"><form className="grid gap-4 border-t-4 border-[#d66a3a] bg-white p-6 md:grid-cols-3" onSubmit={async (event) => {
-    event.preventDefault(); setError(""); const f = new FormData(event.currentTarget); const file = f.get("file"); if (!(file instanceof File) || file.size === 0) return;
-    const idField = influencerMode ? "influencerId" : "productId"; const targetId = String(f.get(idField));
-    const presignPayload = { action: "presign", [idField]: targetId, fileName: file.name, contentType: file.type, size: file.size };
-    const presign = await fetch(`/api/admin/${targetResource}`, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(presignPayload) });
-    if (!presign.ok) { setError(await problemMessage(presign, "No fue posible preparar la carga. Configura R2 para nuevas fotografías.")); return; }
-    const signed = (await presign.json()) as { data: { uploadUrl: string; key: string; publicUrl: string } };
-    const upload = await fetch(signed.data.uploadUrl, { method: "PUT", headers: { "content-type": file.type }, body: file });
-    if (!upload.ok) { setError("El almacenamiento rechazó la imagen."); return; }
-    const associatePayload = influencerMode ? { action: "associate", influencerId: targetId, key: signed.data.key, url: signed.data.publicUrl, altText: f.get("altText"), caption: f.get("caption") || null, kind: f.get("kind"), sortOrder: Number(f.get("sortOrder")) } : { action: "associate", productId: targetId, key: signed.data.key, url: signed.data.publicUrl, altText: f.get("altText") };
-    const associate = await fetch(`/api/admin/${targetResource}`, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(associatePayload) });
-    if (!associate.ok) { setError(await problemMessage(associate, "No fue posible registrar la fotografía.")); return; }
-    setMessage("Fotografía cargada y registrada."); event.currentTarget.reset(); await reload();
+    event.preventDefault();
+    const form = event.currentTarget;
+    const f = new FormData(form);
+    const file = f.get("file");
+    setError("");
+    setMessage("");
+    if (!(file instanceof File) || file.size === 0) { setError("Selecciona una imagen antes de continuar."); return; }
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) { setError("La imagen debe ser JPG, PNG o WebP."); return; }
+    if (file.size > 8 * 1024 * 1024) { setError("La imagen no puede superar 8 MB."); return; }
+    const idField = influencerMode ? "influencerId" : "productId";
+    const targetId = String(f.get(idField));
+    if (!targetId) { setError(influencerMode ? "Selecciona un embajador." : "Selecciona un producto."); return; }
+    setUploading(true);
+    try {
+      const presignPayload = { action: "presign", [idField]: targetId, fileName: file.name, contentType: file.type, size: file.size };
+      const presign = await fetch(`/api/admin/${targetResource}`, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(presignPayload) });
+      if (!presign.ok) { setError(await problemMessage(presign, "No fue posible preparar la carga. Revisa la configuración de R2.")); return; }
+      const signed = (await presign.json()) as { data: { uploadUrl: string; key: string; publicUrl: string } };
+      const upload = await fetch(signed.data.uploadUrl, { method: "PUT", headers: { "content-type": file.type }, body: file });
+      if (!upload.ok) { setError(`El almacenamiento rechazó la imagen (HTTP ${upload.status}).`); return; }
+      const associatePayload = influencerMode ? { action: "associate", influencerId: targetId, key: signed.data.key, url: signed.data.publicUrl, altText: f.get("altText"), caption: f.get("caption") || null, kind: f.get("kind"), sortOrder: Number(f.get("sortOrder")) } : { action: "associate", productId: targetId, key: signed.data.key, url: signed.data.publicUrl, altText: f.get("altText") };
+      const associate = await fetch(`/api/admin/${targetResource}`, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(associatePayload) });
+      if (!associate.ok) { setError(await problemMessage(associate, "La imagen se cargó, pero no fue posible registrarla.")); return; }
+      setMessage("Fotografía cargada y registrada."); form.reset(); await reload();
+    } catch {
+      setError("No fue posible conectar con el almacenamiento. Revisa CORS y vuelve a intentarlo.");
+    } finally {
+      setUploading(false);
+    }
   }}>
     <div className="md:col-span-3"><p className="text-xs font-bold uppercase tracking-[0.15em] text-[#777a74]">Nueva imagen</p><h2 className="mt-2 text-3xl font-semibold">Carga segura a la biblioteca</h2></div>
     {influencerMode ? <Field label="Embajador"><select className={inputClass} name="influencerId" required><option value="">Seleccionar perfil</option>{influencers.map((item) => <option key={item.id} value={item.id}>{display(item.displayName)}</option>)}</select></Field> : <Field label="Producto"><select className={inputClass} name="productId" required><option value="">Seleccionar producto</option>{products.map((item) => <option key={item.id} value={item.id}>{display(item.name)}</option>)}</select></Field>}
     <Field label="Texto alternativo"><input className={inputClass} name="altText" minLength={3} required /></Field><Field label="Imagen"><input className={`${inputClass} py-2`} name="file" type="file" accept="image/png,image/jpeg,image/webp" required /></Field>
     {influencerMode ? <><Field label="Tipo"><select className={inputClass} name="kind"><option value="PORTRAIT">Retrato</option><option value="LIFESTYLE">Lifestyle</option><option value="CAMPAIGN">Campaña</option><option value="PRODUCT">Producto</option></select></Field><Field label="Orden"><input className={inputClass} name="sortOrder" type="number" min="0" defaultValue="0" /></Field><Field label="Pie de foto"><input className={inputClass} name="caption" /></Field></> : null}
-    <button className={`${primaryButton} md:col-span-3 md:w-fit`} type="submit">Subir fotografía</button>
+    <button className={`${primaryButton} md:col-span-3 md:w-fit disabled:cursor-wait disabled:opacity-60`} type="submit" disabled={uploading}>{uploading ? "Subiendo fotografía…" : "Subir fotografía"}</button>
   </form><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{rows.map((row) => <article className="border border-[#c8c5bc] bg-[#f4f1e9]" key={row.id}><div className="relative aspect-[4/3] bg-[#d8d4ca]"><Image className="object-cover" src={display(row.url)} alt={display(row.altText)} fill sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw" unoptimized /></div><div className="p-4"><p className="text-xs font-bold uppercase tracking-[0.12em] text-[#777a74]">{influencerMode ? display(row.kind) : "Producto"}</p><p className="mt-2 text-sm">{display(row.altText)}</p><p className="mt-1 text-xs text-[#777a74]">{influencerMode ? display((row.influencer as { displayName?: unknown } | undefined)?.displayName) : display((row.product as { name?: unknown } | undefined)?.name)}</p><button className="mt-4 min-h-11 text-sm text-[#8f3026] underline" onClick={() => void remove(targetResource, row.id)}>Eliminar fotografía</button></div></article>)}{rows.length === 0 ? <EmptyState text="Aún no hay fotografías en esta biblioteca." /> : null}</section></div>;
 }
 
